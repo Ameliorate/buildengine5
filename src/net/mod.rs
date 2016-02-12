@@ -182,6 +182,7 @@ impl MioHandler for Handler {
                 }
                 Ok(None) => debug!("Recived Ok(None) in listener.accept()."),
                 Err(error) => panic!("listener.accept() errored with {:?}!", error),
+                // TODO: See if any of these errors can be handled better.
             }
         }
     }
