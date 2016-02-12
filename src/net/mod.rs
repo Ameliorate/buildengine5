@@ -1,9 +1,11 @@
 use std::convert::From;
+use std::io;
 use std::io::{Read, Write};
 use std::sync::mpsc::{Sender, channel};
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::error::Error;
+use std::net::SocketAddr;
 
 use VERSION;
 
@@ -93,11 +95,11 @@ impl Handler {
     }
 
     /// Creates a new instance of a Handler. Does listen for connections.
-    pub fn new_listener(addr: &SocketAddr) -> Self {
-        Handler {
+    pub fn new_listener(addr: &SocketAddr) -> Result<Self, io::Error> {
+        Ok(Handler {
             connections: Slab::new_starting_at(Token::from_usize(1), MAX_CONNECTIONS),
-            listener: TcpListener::bind(addr),
-        }
+            listener: Some(try!(TcpListener::bind(addr))),
+        })
     }
 }
 
@@ -131,7 +133,7 @@ impl MioHandler for Handler {
                 .expect(&format!("An error occured reading from socket {:?}", token));    // TODO: Figure out possible errors and take care of them.
             let length = get_packet_length(header).unwrap_or(0);
             if length == 0 {
-                event_loop.deregister(self.connections[token].stream);
+                event_loop.deregister(&self.connections[token].stream);
                 self.connections[token].stream.shutdown(Shutdown::Both);
                 self.connections.remove(token);
                 // I directly kill the connection, becasue if the magic number doesn't match,
