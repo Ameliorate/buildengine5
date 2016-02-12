@@ -3,7 +3,6 @@
 #![deny(missing_docs,
         missing_debug_implementations, missing_copy_implementations,
         trivial_casts, trivial_numeric_casts,
-        unsafe_code,
         unused_import_braces, unused_qualifications,
         warnings)]
 
@@ -99,10 +98,22 @@ impl From<io::Error> for InitError {
     }
 }
 
-struct Engine {
-    handler: Handler,
-    event_loop: EventLoop,
-    client_or_server: Option<Client>,
+/// Main game struct. Contains all state nescary to work.
+///
+/// While you may never need the fields exposed, they are exposed if you ever want to inspect the game state.
+/// You probably, however don't want to mutate the state directly. That can mess up client-server syncronization.
+#[derive(Debug)]
+pub struct Engine {
+    /// Contatins all the networking state.
+    ///
+    /// Things like connections and the listener go here, as well as what packets need to be sent next opertunity.
+    pub handler: Handler,
+    /// The networking event loop. Mostly used in other functions for sending, adding, and killing connections.
+    pub event_loop: EventLoop,
+    /// The clientside or serverside state.
+    ///
+    /// Currently a Some if it is a client, or None if server.
+    pub client_or_server: Option<Client>,
 }
 
 impl Engine {
@@ -118,6 +129,7 @@ impl Engine {
         })
     }
 
+    /// Creates a new server.
     pub fn new_server(server_address: &SocketAddr) -> Result<Self, InitError> {
         let event_loop = try!(EventLoop::new());
         let listener = try!(TcpListener::bind(server_address));

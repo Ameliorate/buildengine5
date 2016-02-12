@@ -44,12 +44,15 @@ impl From<io::Error> for InitError {
     }
 }
 
+#[derive(Debug)]
 pub struct Client {
-    token: Token,
+    pub token: Token,
 }
 
 impl Client {
-    pub fn spawn_client(server_address: SocketAddr, event_loop: &EventLoop) -> Result<Client, InitError> {
+    pub fn spawn_client(server_address: SocketAddr,
+                        event_loop: &EventLoop)
+                        -> Result<Client, InitError> {
         let socket = try!(TcpStream::connect(&server_address));
         let token = add_socket(event_loop, socket);
         send(event_loop,

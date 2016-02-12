@@ -19,8 +19,6 @@ pub mod client;
 #[cfg(Test)]
 pub mod test;
 
-/// The default port for a server to listen on.
-pub const STANDARD_PORT: u16 = 25566;
 /// Standard number to ensure network connections are syncronized and the same protocol is being used.
 /// Reexported incase it is of use for something not-networking.
 pub const NET_MAGIC_NUMBER: u32 = 0xCB011043; //0xcafebade + 0x25565, because programming references.
@@ -30,6 +28,7 @@ pub const NET_MAGIC_NUMBER: u32 = 0xCB011043; //0xcafebade + 0x25565, because pr
 const MAX_CONNECTIONS: usize = 1024;
 
 /// Sent to the handler to facilitate certan actions that require access of the data accocated with the handler.
+#[derive(Debug)]
 pub enum HandlerMessage {
     Send(NetworkPacket, Token),
     AddStream(TcpStream, Sender<Token>),
@@ -98,6 +97,7 @@ impl Error for NetworkError {
 pub type EventLoop = MioEventLoop<Handler>;
 
 /// Keeps the data that is nescary during packet handling.
+#[derive(Debug)]
 pub struct Handler {
     connections: Slab<Connection>,
     listener: Option<TcpListener>,
