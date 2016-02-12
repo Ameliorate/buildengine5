@@ -24,14 +24,19 @@ pub const STANDARD_PORT: u16 = 25566;
 /// Standard number to ensure network connections are syncronized and the same protocol is being used.
 /// Reexported incase it is of use for something not-networking.
 pub const NET_MAGIC_NUMBER: u32 = 0xCB011043; //0xcafebade + 0x25565, because programming references.
+/// The maximum nunber of connections that can be had.
+///
+/// If the number of connections exceeds this number, new connections should be denied.
 const MAX_CONNECTIONS: usize = 1024;
 
-pub enum HandlerMessage {
+/// Sent to the handler to facilitate certan actions that require access of the data accocated with the handler.
+enum HandlerMessage {
     Send(NetworkPacket, Token),
     AddStream(TcpStream, Sender<Token>),
     Kill(Token),
 }
 
+/// Messages that can be sent between peers to facilitate vairous actions.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum NetworkPacket {
     /// Sent on connection to verify everything is in sync.
@@ -46,6 +51,7 @@ pub enum NetworkPacket {
     Test,
 }
 
+/// Sent in the case of an error that should be sent to the peer.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum NetworkError {
     VersionMismatch(String, String),
@@ -87,6 +93,8 @@ impl Error for NetworkError {
 }
 
 pub type EventLoop = MioEventLoop<Handler>;
+
+/// Keeps the data that is nescary during packet handling.
 pub struct Handler {
     connections: Slab<Connection>,
     listener: Option<TcpListener>,
@@ -144,6 +152,8 @@ impl MioHandler for Handler {
                 // I directly kill the connection, becasue if the magic number doesn't match,
                 // the peer probably doesn't share the same protocol. It wouldn't understand a normal error packet.
                 return;
+                // Returning pervents other actions from hapening as well. 
+                // After all, the token is now invalid and will panic or something if left around.
             }
             let mut packet = Vec::new();
             (&mut self.connections[token].stream).take(length as u64).read_to_end(&mut packet).unwrap();
