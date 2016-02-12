@@ -31,6 +31,8 @@ use std::fmt::{Display, Error as FmtError, Formatter};
 use net::client::Client;
 use net::{EventLoop, Handler, client};
 
+use mio::tcp::TcpListener;
+
 /// The current version of buildengine. Fallows Semantic Versioning.
 pub const VERSION: &'static str = "0.0.1";
 
@@ -113,6 +115,17 @@ impl Engine {
             handler: handler,
             event_loop: event_loop,
             client_or_server: Some(client),
+        })
+    }
+
+    pub fn new_server(server_address: &SocketAddr) -> Result<Self, InitError> {
+        let event_loop = try!(EventLoop::new());
+        let listener = try!(TcpListener::bind(server_address));
+        let handler = Handler::new_listener(listener);
+        Ok(Engine {
+            handler: handler,
+            event_loop: event_loop,
+            client_or_server: None,
         })
     }
 }
