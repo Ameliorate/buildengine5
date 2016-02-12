@@ -16,6 +16,8 @@ extern crate errorser;
 extern crate log;
 #[macro_use]
 extern crate quick_error;
+#[macro_use]
+extern crate lazy_static;
 extern crate serde;
 extern crate mio;
 extern crate either;

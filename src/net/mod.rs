@@ -1,6 +1,7 @@
 use std::convert::From;
 use std::io;
 use std::io::{Read, Write};
+use std::sync::atomic::Ordering;
 use std::sync::mpsc::{Sender, channel};
 use std::fmt;
 use std::fmt::{Display, Formatter};
@@ -270,7 +271,7 @@ fn handle_packet(to_handle: NetworkPacket, sender: Token, event_loop: &EventLoop
         }
 
         #[cfg(Test)]
-        NetworkPacket::Test => unimplemented!(),
+        NetworkPacket::Test => test::TEST_INT.fetch_add(1, Ordering::Relaxed),
 
         NetworkPacket::Error(error) => if ::check_should_crash() { panic!(error) } else { unimplemented!() },
     }
