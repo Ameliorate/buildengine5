@@ -19,7 +19,6 @@ use mio::util::Slab;
 use slab::Index;
 
 pub mod client;
-pub mod server;
 #[cfg(Test)]
 pub mod test;
 
