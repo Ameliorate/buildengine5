@@ -11,7 +11,7 @@ use bincode::serde::{DeserializeError, deserialize, serialize};
 use bincode::SizeLimit;
 use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
 use mio::{EventLoop as MioEventLoop, EventSet, Handler as MioHandler, PollOpt, Token};
-use mio::tcp::{TcpListener, TcpStream};
+use mio::tcp::{TcpListener, TcpStream, Shutdown};
 use mio::util::Slab;
 use slab::Index;
 
@@ -151,7 +151,15 @@ impl MioHandler for Handler {
                 .stream
                 .read(&mut header)
                 .expect(&format!("An error occured reading from socket {:?}", token));    // TODO: Figure out possible errors and take care of them.
-            let length = get_packet_length(header).unwrap();    // TODO: Handle error gracefully.
+            let length = get_packet_length(header).unwrap_or(0);
+            if length == 0 {
+                event_loop.deregister(self.connections[token].stream);
+                self.connections[token].stream.shutdown(Shutdown::Both);
+                self.connections.remove(token);
+                // I directly kill the connection, becasue if the magic number doesn't match,
+                // the peer probably doesn't share the same protocol. It wouldn't understand a normal error packet.
+                return;
+            }
             let mut packet = Vec::new();
             (&mut self.connections[token].stream).take(length as u64).read_to_end(&mut packet).unwrap();
             // I do this because Read.take takes a self, instead of a reasonable alternitive.
@@ -231,15 +239,15 @@ impl From<DeserializeError> for PacketDeseError {
     }
 }
 
-/// Returns the length of a given packet, or an error if the first four bytes do not match NET_MAGIC_NUMBER.
-fn get_packet_length(to_ln: [u8; 6]) -> Result<u16, PacketDeseError> {
+/// Returns the length of a given packet, or a None if the first four bytes do not match NET_MAGIC_NUMBER.
+fn get_packet_length(to_ln: [u8; 6]) -> Option<u16> {
     let (first_four, next_two) = to_ln.split_at(4);
     let should_be_magic_num = LittleEndian::read_u32(&first_four);
     if should_be_magic_num != NET_MAGIC_NUMBER {
-        return Err(PacketDeseError::MagicNumberMismatch);
+        return None;
     }
     let length = LittleEndian::read_u16(&next_two);
-    Ok(length)
+    Some(length)
 }
 
 fn deserialize_packet(to_de: &[u8]) -> Result<NetworkPacket, PacketDeseError> {
