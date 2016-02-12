@@ -111,7 +111,7 @@ impl Engine {
         Ok(Engine {
             handler: handler,
             event_loop: event_loop,
-            client_or_server: Either::Left(client),
+            client_or_server: Some(client),
         })
     }
 }
