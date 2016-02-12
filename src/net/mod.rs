@@ -93,8 +93,11 @@ impl Handler {
     }
 
     /// Creates a new instance of a Handler. Does listen for connections.
-    pub fn new_listener() -> Self {
-        unimplemented!();
+    pub fn new_listener(addr: &SocketAddr) -> Self {
+        Handler {
+            connections: Slab::new_starting_at(Token::from_usize(1), MAX_CONNECTIONS),
+            listener: TcpListener::bind(addr),
+        }
     }
 }
 
