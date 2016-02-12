@@ -117,31 +117,6 @@ impl MioHandler for Handler {
     type Timeout = ();
     type Message = HandlerMessage;
     fn ready(&mut self, event_loop: &mut MioEventLoop<Handler>, token: Token, events: EventSet) {
-        if events.is_writable() {
-            // Get all the messages that should be send to that token, seralize all of them, then send all of them.
-            // Afterwards, flush the buffer.
-            let to_send = self.connections[token].message_queue.clone();
-            self.connections[token].message_queue = Vec::new();
-            if !to_send.is_empty() {
-                for send in to_send {
-                    let bytes = seralize_packet(&send);
-                    self.connections[token]
-                        .stream
-                        .write(&bytes)
-                        .expect(&format!("Error writing {:?} to connection {:?}/{:?}",
-                                         send,
-                                         token,
-                                         self.connections[token]));
-                }
-                self.connections[token]
-                    .stream
-                    .flush()
-                    .expect(&format!("Error flushing connection {:?}/{:?}",
-                                     token,
-                                     self.connections[token]));;
-            }
-        }
-
         if events.is_readable() {
             // Read the 6 byte header of each packet, throw it into get_packet_length, then read that number of bytes.
             // Then throw those bytes into deserialize_packet. Afterwards, throw it to handle_packet.
@@ -166,6 +141,31 @@ impl MioHandler for Handler {
             // However &mut Read is it's self a Reader. So I use that instead.
             let dese = deserialize_packet(&packet).unwrap();
             handle_packet(dese, token, event_loop);
+        }
+
+        if events.is_writable() {
+            // Get all the messages that should be send to that token, seralize all of them, then send all of them.
+            // Afterwards, flush the buffer.
+            let to_send = self.connections[token].message_queue.clone();
+            self.connections[token].message_queue = Vec::new();
+            if !to_send.is_empty() {
+                for send in to_send {
+                    let bytes = seralize_packet(&send);
+                    self.connections[token]
+                        .stream
+                        .write(&bytes)
+                        .expect(&format!("Error writing {:?} to connection {:?}/{:?}",
+                                         send,
+                                         token,
+                                         self.connections[token]));
+                }
+                self.connections[token]
+                    .stream
+                    .flush()
+                    .expect(&format!("Error flushing connection {:?}/{:?}",
+                                     token,
+                                     self.connections[token]));;
+            }
         }
 
         // This may need to be in an if events.is_readable() block.
