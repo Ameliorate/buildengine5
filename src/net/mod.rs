@@ -11,7 +11,7 @@ use bincode::serde::{DeserializeError, deserialize, serialize};
 use bincode::SizeLimit;
 use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
 use mio::{EventLoop as MioEventLoop, EventSet, Handler as MioHandler, PollOpt, Token};
-use mio::tcp::{TcpListener, TcpStream, Shutdown};
+use mio::tcp::{Shutdown, TcpListener, TcpStream};
 use mio::util::Slab;
 use slab::Index;
 
