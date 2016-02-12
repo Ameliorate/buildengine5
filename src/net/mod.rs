@@ -30,7 +30,7 @@ pub const NET_MAGIC_NUMBER: u32 = 0xCB011043; //0xcafebade + 0x25565, because pr
 const MAX_CONNECTIONS: usize = 1024;
 
 /// Sent to the handler to facilitate certan actions that require access of the data accocated with the handler.
-enum HandlerMessage {
+pub enum HandlerMessage {
     Send(NetworkPacket, Token),
     AddStream(TcpStream, Sender<Token>),
     Kill(Token),
@@ -71,7 +71,10 @@ impl Display for NetworkError {
                        ver1,
                        ver2)
             }
-            NetworkError::ShouldCrashBothTrue => write!(fmt, "ShouldCrashBothTrue: Both peers have should_crash == false."),
+            NetworkError::ShouldCrashBothTrue => {
+                write!(fmt,
+                       "ShouldCrashBothTrue: Both peers have should_crash == false.")
+            }
         }
     }
 }
@@ -152,7 +155,7 @@ impl MioHandler for Handler {
                 // I directly kill the connection, becasue if the magic number doesn't match,
                 // the peer probably doesn't share the same protocol. It wouldn't understand a normal error packet.
                 return;
-                // Returning pervents other actions from hapening as well. 
+                // Returning pervents other actions from hapening as well.
                 // After all, the token is now invalid and will panic or something if left around.
             }
             let mut packet = Vec::new();
@@ -193,7 +196,10 @@ impl MioHandler for Handler {
                 Ok(Some((socket, address))) => {
                     let token = self.connections.insert(Connection::new(socket)).unwrap();
                     send(event_loop,
-                         NetworkPacket::Init { version: VERSION.to_owned(), should_crash: ::check_should_crash() },
+                         NetworkPacket::Init {
+                             version: VERSION.to_owned(),
+                             should_crash: ::check_should_crash(),
+                         },
                          token);
                     info!("Accepted connection {}.", address);
                 }
@@ -287,7 +293,8 @@ fn handle_packet(to_handle: NetworkPacket, sender: Token, event_loop: &EventLoop
         NetworkPacket::Init{version, should_crash} => {
             if !should_crash && !::check_should_crash() {
                 send(event_loop,
-                    NetworkPacket::Error(NetworkError::ShouldCrashBothTrue), sender);
+                     NetworkPacket::Error(NetworkError::ShouldCrashBothTrue),
+                     sender);
                 kill(event_loop, sender)
             }
             if version != VERSION {

@@ -25,6 +25,7 @@ mod net;
 use std::error::Error;
 use std::io;
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::fmt::{Display, Error as FmtError, Formatter};
 
 use net::client::Client;
@@ -36,7 +37,9 @@ pub const VERSION: &'static str = "0.0.1";
 /// If the game is allowed to crash in the event of a semi-handleable error, such as a bad network packet or a peer crashing.
 ///
 /// Programming mistakes however, will still panic.
-pub static mut should_crash: bool = true;   // Basically Erlang's too_big_to_fail process_flag.
+lazy_static! {
+     static ref SHOULD_CRASH: AtomicBool = AtomicBool::new(true);    // Basically Erlang's too_big_to_fail process_flag.
+}
 
 /// Initalizes the global parts of the engine.
 ///
@@ -120,8 +123,5 @@ pub fn print_hello_world() {
 }
 
 fn check_should_crash() -> bool {
-    #[allow(unsafe_code)]
-    unsafe {
-        should_crash    // Is it really okay to use this value if it will only change when the application is still single threaded?
-    }
+    SHOULD_CRASH.load(Ordering::Relaxed)
 }
