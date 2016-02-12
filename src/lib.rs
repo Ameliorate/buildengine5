@@ -1,4 +1,4 @@
-#![feature(custom_derive, plugin)]
+#![feature(custom_derive, plugin, stmt_expr_attributes)]
 #![plugin(serde_macros)]
 #![deny(missing_docs,
         missing_debug_implementations, missing_copy_implementations,
@@ -29,8 +29,6 @@ use std::fmt::{Display, Error as FmtError, Formatter};
 
 use net::client::Client;
 use net::{EventLoop, Handler, client};
-
-use either::Either;
 
 /// The current version of buildengine. Fallows Semantic Versioning.
 pub const VERSION: &'static str = "0.0.1";
@@ -122,6 +120,7 @@ pub fn print_hello_world() {
 }
 
 fn check_should_crash() -> bool {
+    #[allow(unsafe_code)]
     unsafe {
         should_crash    // Is it really okay to use this value if it will only change when the application is still single threaded?
     }

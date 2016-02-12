@@ -1,12 +1,9 @@
 use std::convert::From;
-use std::io;
 use std::io::{Read, Write};
-use std::sync::atomic::Ordering;
 use std::sync::mpsc::{Sender, channel};
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::error::Error;
-use std::net::SocketAddr;
 
 use VERSION;
 
@@ -133,8 +130,8 @@ impl MioHandler for Handler {
                 .expect(&format!("An error occured reading from socket {:?}", token));    // TODO: Figure out possible errors and take care of them.
             let length = get_packet_length(header).unwrap_or(0);
             if length == 0 {
-                event_loop.deregister(&self.connections[token].stream);
-                self.connections[token].stream.shutdown(Shutdown::Both);
+                event_loop.deregister(&self.connections[token].stream).expect("io::Error while deregistering socket because of bad magic number.");
+                self.connections[token].stream.shutdown(Shutdown::Both).expect("io::Error while shutting down socket because of bad magic number.");
                 self.connections.remove(token);
                 // I directly kill the connection, becasue if the magic number doesn't match,
                 // the peer probably doesn't share the same protocol. It wouldn't understand a normal error packet.
@@ -234,7 +231,6 @@ fn seralize_packet(to_ser: &NetworkPacket) -> Vec<u8> {
 
 #[derive(Debug)]
 enum PacketDeseError {
-    MagicNumberMismatch,
     InvalidEncoding(DeserializeError),
 }
 
