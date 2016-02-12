@@ -1,0 +1,34 @@
+[package]
+authors = ["Amelorate <ameilorate2@gmail.com>"]
+description = "Provides a game engine for byond-like tile based games like Space Station 13."
+homepage = "http://buildstation.proboards.com/"
+license = "MIT"
+name = "buildengine5"
+readme = "README.md"
+repository = "https://github.com/killercup/hsl-rs.git"
+version = "0.0.1"
+
+[[bin]]
+name = "buildengine5bin"
+path = "src/bin.rs"
+
+[dependencies]
+bincode = "0.4.0"
+byteorder = "0.4.2"
+either = "0.1.6"
+env_logger = "0.3.2"
+errorser = "1.0.1"
+log = "0.3.5"
+mio = "0.5.0"
+piston = "0.17.0"
+piston2d-graphics = "0.13.1"
+piston2d-opengl_graphics = "0.23.0"
+pistoncore-glutin_window = "0.20.0"
+quick-error = "0.2.2"
+serde = "0.6.11"
+serde_macros = "0.6.11"
+slab = "0.1.3"
+
+[lib]
+name = "buildengine5lib"
+path = "src/lib.rs"
