@@ -29,6 +29,7 @@ const MAX_CONNECTIONS: usize = 1024;
 pub enum HandlerMessage {
     Send(NetworkPacket, Token),
     AddStream(TcpStream, Sender<Token>),
+    Kill(Token),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -36,6 +37,7 @@ pub enum NetworkPacket {
     /// Sent on connection to verify everything is in sync.
     Init {
         version: String,
+        should_crash: bool,
     },
     /// An error that should crash the game and show an error to the user, but only on a client.
     Error(NetworkError),
@@ -47,6 +49,11 @@ pub enum NetworkPacket {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum NetworkError {
     VersionMismatch(String, String),
+    /// If both peers have should_crash == false, then this error should be sent.
+    ///
+    /// Do note that this error should not be rewrapped into a reerror, since it would cause a loop.
+    /// Instead, it should be logged and ignored.
+    ShouldCrashBothTrue,
 }
 
 impl Display for NetworkError {
@@ -58,6 +65,7 @@ impl Display for NetworkError {
                        ver1,
                        ver2)
             }
+            NetworkError::ShouldCrashBothTrue => write!(fmt, "ShouldCrashBothTrue: Both peers have should_crash == false."),
         }
     }
 }
@@ -66,12 +74,14 @@ impl Error for NetworkError {
     fn description(&self) -> &str {
         match *self {
             NetworkError::VersionMismatch(_, _) => "VersionMismatch: The versions of the client and server attempting to connect mismatch.",
+            NetworkError::ShouldCrashBothTrue => "ShouldCrashBothTrue: Both peers have should_crash == false.",
         }
     }
 
     fn cause(&self) -> Option<&Error> {
         match *self {
             NetworkError::VersionMismatch(_, _) => None,
+            NetworkError::ShouldCrashBothTrue => None,
         }
     }
 }
@@ -130,9 +140,7 @@ impl MioHandler for Handler {
                 .expect(&format!("An error occured reading from socket {:?}", token));    // TODO: Figure out possible errors and take care of them.
             let length = get_packet_length(header).unwrap_or(0);
             if length == 0 {
-                event_loop.deregister(&self.connections[token].stream).expect("io::Error while deregistering socket because of bad magic number.");
-                self.connections[token].stream.shutdown(Shutdown::Both).expect("io::Error while shutting down socket because of bad magic number.");
-                self.connections.remove(token);
+                kill(event_loop, token);
                 // I directly kill the connection, becasue if the magic number doesn't match,
                 // the peer probably doesn't share the same protocol. It wouldn't understand a normal error packet.
                 return;
@@ -175,7 +183,7 @@ impl MioHandler for Handler {
                 Ok(Some((socket, address))) => {
                     let token = self.connections.insert(Connection::new(socket)).unwrap();
                     send(event_loop,
-                         NetworkPacket::Init { version: VERSION.to_owned() },
+                         NetworkPacket::Init { version: VERSION.to_owned(), should_crash: ::check_should_crash() },
                          token);
                     info!("Accepted connection {}.", address);
                 }
@@ -200,6 +208,11 @@ impl MioHandler for Handler {
             HandlerMessage::Send(packet, token) => {
                 self.connections[token].message_queue.push(packet);
             }
+            HandlerMessage::Kill(token) => {
+                event_loop.deregister(&self.connections[token].stream).expect("io::Error while deregistering socket.");
+                self.connections[token].stream.shutdown(Shutdown::Both).expect("io::Error while shutting down socket.");
+                self.connections.remove(token);
+            }
         }
     }
 }
@@ -215,6 +228,10 @@ fn add_socket(event_loop: &EventLoop, socket: TcpStream) -> Token {
 /// This is a static function instead of an impl function because you can't impl on external structs. In this case, mio::EventLoop.
 pub fn send(event_loop: &EventLoop, to_send: NetworkPacket, token: Token) {
     event_loop.channel().send(HandlerMessage::Send(to_send, token)).unwrap();
+}
+
+pub fn kill(event_loop: &EventLoop, token: Token) {
+    event_loop.channel().send(HandlerMessage::Kill(token)).unwrap();
 }
 
 fn seralize_packet(to_ser: &NetworkPacket) -> Vec<u8> {
@@ -257,17 +274,20 @@ fn deserialize_packet(to_de: &[u8]) -> Result<NetworkPacket, PacketDeseError> {
 
 fn handle_packet(to_handle: NetworkPacket, sender: Token, event_loop: &EventLoop) {
     match to_handle {
-        NetworkPacket::Init{version} => {
+        NetworkPacket::Init{version, should_crash} => {
+            if !should_crash && !::check_should_crash() {
+                send(event_loop,
+                    NetworkPacket::Error(NetworkError::ShouldCrashBothTrue), sender);
+                kill(event_loop, sender)
+            }
             if version != VERSION {
                 send(event_loop,
                      NetworkPacket::Error(NetworkError::VersionMismatch(version.to_owned(), VERSION.to_owned())),
                      sender)
             }
         }
-
         #[cfg(Test)]
         NetworkPacket::Test => test::TEST_INT.fetch_add(1, Ordering::Relaxed),
-
         NetworkPacket::Error(error) => if ::check_should_crash() { panic!(error) } else { unimplemented!() },
     }
 }
