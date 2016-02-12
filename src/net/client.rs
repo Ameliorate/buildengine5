@@ -1,3 +1,5 @@
+//! Client side netcode. Creates the types nescary for creating a client and storing it's state.
+
 use std::convert::From;
 use std::error::Error;
 use std::io;
@@ -11,8 +13,10 @@ use VERSION;
 use mio::Token;
 use mio::tcp::TcpStream;
 
+/// An error that can occour initalising the client.
 #[derive(Debug)]
 pub enum InitError {
+    /// An io::Error.
     IoError(io::Error),
 }
 
@@ -44,15 +48,16 @@ impl From<io::Error> for InitError {
     }
 }
 
-#[derive(Debug)]
+/// The state for a client.
+#[derive(Debug, Clone, Copy)]
 pub struct Client {
+    /// The server the client is connected to,
     pub token: Token,
 }
 
 impl Client {
-    pub fn spawn_client(server_address: SocketAddr,
-                        event_loop: &EventLoop)
-                        -> Result<Client, InitError> {
+    /// Creates a client and connects to the remote server.
+    pub fn spawn_client(server_address: SocketAddr, event_loop: &EventLoop) -> Result<Client, InitError> {
         let socket = try!(TcpStream::connect(&server_address));
         let token = add_socket(event_loop, socket);
         send(event_loop,

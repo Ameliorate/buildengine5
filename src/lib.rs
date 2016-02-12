@@ -19,7 +19,7 @@ extern crate mio;
 extern crate either;
 extern crate slab;
 
-mod net;
+pub mod net;
 
 use std::error::Error;
 use std::io;

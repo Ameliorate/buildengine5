@@ -1,3 +1,7 @@
+//! Netcode for buildengine. Kinda messy.
+//!
+//! At some time, most of this code may be moved into a new crate.
+
 use std::convert::From;
 use std::io::{Read, Write};
 use std::sync::mpsc::{Sender, channel};
@@ -22,6 +26,10 @@ pub mod test;
 /// Standard number to ensure network connections are syncronized and the same protocol is being used.
 /// Reexported incase it is of use for something not-networking.
 pub const NET_MAGIC_NUMBER: u32 = 0xCB011043; //0xcafebade + 0x25565, because programming references.
+/// Default port for clients and servers to connect on.
+///
+/// Mostly exposed for launchers to use, but is also used in unit testing and the like.
+pub const STANDARD_PORT: u16 = 25566;
 /// The maximum nunber of connections that can be had.
 ///
 /// If the number of connections exceeds this number, new connections should be denied.
@@ -30,8 +38,13 @@ const MAX_CONNECTIONS: usize = 1024;
 /// Sent to the handler to facilitate certan actions that require access of the data accocated with the handler.
 #[derive(Debug)]
 pub enum HandlerMessage {
+    /// Send a packet to the peer the token points to.
     Send(NetworkPacket, Token),
+    /// Add the given stream, then send the token it is assigned to through the sender.
+    ///
+    /// I'm unsure of the preformance, and can't really find it on the internet.
     AddStream(TcpStream, Sender<Token>),
+    /// Kill the socket with the given token.
     Kill(Token),
 }
 
@@ -40,7 +53,14 @@ pub enum HandlerMessage {
 pub enum NetworkPacket {
     /// Sent on connection to verify everything is in sync.
     Init {
+        /// The curent version of the local game.
+        ///
+        /// Should be formatted according to Scematic Versioning.
         version: String,
+        /// If the local game should crash when an error occours.
+        ///
+        /// Two peers should not have this as false, because should_crash will send the error to the remote peer and make it crash instead.
+        /// This would cause a infinite loop if both were to do it.
         should_crash: bool,
     },
     /// An error that should crash the game and show an error to the user, but only on a client.
@@ -53,11 +73,12 @@ pub enum NetworkPacket {
 /// Sent in the case of an error that should be sent to the peer.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum NetworkError {
+    /// If the versions mismatch sufficently to become incompatible with each other.
     VersionMismatch(String, String),
     /// If both peers have should_crash == false, then this error should be sent.
     ///
     /// Do note that this error should not be rewrapped into a reerror, since it would cause a loop.
-    /// Instead, it should be logged and ignored.
+    /// Instead, it should be logged and ignored, as the connection will be killed shortly after.
     ShouldCrashBothTrue,
 }
 
@@ -94,6 +115,7 @@ impl Error for NetworkError {
     }
 }
 
+/// The event loop for the networking portion of the game.
 pub type EventLoop = MioEventLoop<Handler>;
 
 /// Keeps the data that is nescary during packet handling.
@@ -233,7 +255,11 @@ impl MioHandler for Handler {
     }
 }
 
-fn add_socket(event_loop: &EventLoop, socket: TcpStream) -> Token {
+/// Add a socket to be checked during the event loop.
+///
+/// Do note that this function assumes that the socket has been properly inited acording to the protocol.
+/// Not doing so could cause hard to discover bugs if versions mismatch.
+pub fn add_socket(event_loop: &EventLoop, socket: TcpStream) -> Token {
     let (tx, rx) = channel();   // How expensive is this? Should I be creating a whole new channel for just 1 message?
     event_loop.channel().send(HandlerMessage::AddStream(socket, tx)).unwrap();
     rx.recv().unwrap() // I should feel bad.
@@ -246,6 +272,9 @@ pub fn send(event_loop: &EventLoop, to_send: NetworkPacket, token: Token) {
     event_loop.channel().send(HandlerMessage::Send(to_send, token)).unwrap();
 }
 
+/// Kill a socket at the given token.
+///
+/// This is a static function instead of an impl function because you can't impl on external structs. In this case, mio::EventLoop.
 pub fn kill(event_loop: &EventLoop, token: Token) {
     event_loop.channel().send(HandlerMessage::Kill(token)).unwrap();
 }
