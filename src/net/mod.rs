@@ -257,9 +257,7 @@ fn handle_packet(to_handle: NetworkPacket, sender: Token, event_loop: &EventLoop
         }
 
         #[cfg(Test)]
-        NetworkPacket::Test => {
-            unimplemented!()
-        }
+        NetworkPacket::Test => unimplemented!(),
 
         NetworkPacket::Error(error) => if ::check_should_crash() { panic!(error) } else { unimplemented!() },
     }
