@@ -96,10 +96,10 @@ impl Handler {
 
     /// Creates a new instance of a Handler. Does listen for connections.
     pub fn new_listener(listener: TcpListener) -> Self {
-        Ok(Handler {
+        Handler {
             connections: Slab::new_starting_at(Token::from_usize(1), MAX_CONNECTIONS),
             listener: Some(listener),
-        })
+        }
     }
 }
 

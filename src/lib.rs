@@ -11,11 +11,8 @@
 extern crate bincode;
 extern crate byteorder;
 extern crate env_logger;
-extern crate errorser;
 #[macro_use]
 extern crate log;
-#[macro_use]
-extern crate quick_error;
 #[macro_use]
 extern crate lazy_static;
 extern crate serde;
@@ -31,7 +28,6 @@ use std::net::SocketAddr;
 use std::fmt::{Display, Error as FmtError, Formatter};
 
 use net::client::Client;
-use net::server::Server;
 use net::{EventLoop, Handler, client};
 
 use either::Either;
@@ -103,7 +99,7 @@ impl From<io::Error> for InitError {
 struct Engine {
     handler: Handler,
     event_loop: EventLoop,
-    client_or_server: Either<Client, Server>,
+    client_or_server: Option<Client>,
 }
 
 impl Engine {
