@@ -171,7 +171,6 @@ impl MioHandler for Handler {
             }
         }
 
-        // This may need to be in an if events.is_readable() block.
         if self.listener.is_some() {
             match self.listener.as_ref().unwrap().accept() {
                 Ok(Some((socket, address))) => {
