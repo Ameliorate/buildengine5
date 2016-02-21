@@ -3,10 +3,10 @@
 //! At some time, most of this code may be moved into a new crate.
 
 use std::convert::From;
+use std::io;
 use std::io::{Read, Write};
-use std::sync::mpsc::{Sender, channel};
 use std::fmt;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::error::Error;
 
 use VERSION;
@@ -33,20 +33,7 @@ pub const STANDARD_PORT: u16 = 25566;
 /// The maximum nunber of connections that can be had.
 ///
 /// If the number of connections exceeds this number, new connections should be denied.
-const MAX_CONNECTIONS: usize = 1024;
-
-/// Sent to the handler to facilitate certan actions that require access of the data accocated with the handler.
-#[derive(Debug)]
-pub enum HandlerMessage {
-    /// Send a packet to the peer the token points to.
-    Send(NetworkPacket, Token),
-    /// Add the given stream, then send the token it is assigned to through the sender.
-    ///
-    /// I'm unsure of the preformance, and can't really find it on the internet.
-    AddStream(TcpStream, Sender<Token>),
-    /// Kill the socket with the given token.
-    Kill(Token),
-}
+pub const MAX_CONNECTIONS: usize = 1024;
 
 /// Messages that can be sent between peers to facilitate vairous actions.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -65,9 +52,6 @@ pub enum NetworkPacket {
     },
     /// An error that should crash the game and show an error to the user, but only on a client.
     Error(NetworkError),
-    /// Used to unit test networking. When recived, increments a value. TODO: Locate that value.
-    #[cfg(test)]
-    Test,
 }
 
 /// Sent in the case of an error that should be sent to the peer.
@@ -115,30 +99,103 @@ impl Error for NetworkError {
     }
 }
 
-/// The event loop for the networking portion of the game.
-pub type EventLoop = MioEventLoop<Handler>;
+/// A networking event loop. Is supposed to allow the capability to do a number of networking tasks generically.
+///
+/// This is a trait as to make unit testing more unit-y.
+pub trait EventLoop: Debug {
+    /// Run the loop exactly once.
+    fn run_once(&mut self) -> Result<(), io::Error>;
+    /// Run the loop forever, or until shutdown() is called.
+    fn run(&mut self) -> Result<(), io::Error>;
+    /// Stop the event loop after the next iteration.
+    fn shutdown(&mut self);
+    /// Send a NetworkPacket over the network.
+    fn send(&mut self, target: Token, packet: NetworkPacket);
+    /// Kill a socket at the given token.
+    ///
+    /// It is important to never use the token of the targer ever. This will cause a panic.
+    fn kill(&mut self, target: Token);
+    /// Add a socket to be checked during the event loop.
+    ///
+    /// Do note that this function assumes that the socket has been properly inited acording to the protocol.
+    /// Not doing so could cause hard to discover bugs if versions mismatch.
+    fn add_socket(&mut self, socket: TcpStream) -> Token;
+    /// Add a TcpListener to be checked every event loop for new connections.
+    fn add_listener(&mut self, listener: TcpListener);
+}
+
+/// Primary impl of EventLoop. Actually does the networking tasks described.
+#[derive(Debug)]
+pub struct EventLoopImpl {
+    mio_event_loop: MioEventLoop<Handler>,
+    handler: Handler,
+}
+
+impl EventLoopImpl {
+    /// Creates a new EventLoopImpl, with the given max_connections.
+    ///
+    /// When the number of connections accocated with the event loop exceed max_connections, the connection is denied.
+    pub fn new(max_connections: usize) -> Result<EventLoopImpl, io::Error> {
+        Ok(EventLoopImpl {
+            mio_event_loop: try!(MioEventLoop::new()),
+            handler: Handler::new(max_connections),
+        })
+    }
+}
+
+impl EventLoop for EventLoopImpl {
+    fn run_once(&mut self) -> Result<(), io::Error> {
+        self.mio_event_loop.run_once(&mut self.handler, None)
+    }
+
+    fn run(&mut self) -> Result<(), io::Error> {
+        self.mio_event_loop.run(&mut self.handler)
+    }
+
+    fn shutdown(&mut self) {
+        self.mio_event_loop.shutdown();
+    }
+
+    fn send(&mut self, target: Token, packet: NetworkPacket) {
+        self.handler.connections[target].message_queue.push(packet);
+    }
+
+    fn kill(&mut self, target: Token) {
+        self.mio_event_loop.deregister(&self.handler.connections[target].stream).expect("io::Error while deregistering socket.");
+        self.handler.connections[target].stream.shutdown(Shutdown::Both).expect("io::Error while shutting down socket.");
+        // TODO: Better decern and handle possible errors.
+        self.handler.connections.remove(target);
+    }
+
+    fn add_socket(&mut self, socket: TcpStream) -> Token {
+        let token = self.handler.connections.insert(Connection::new(socket)).unwrap();
+        self.mio_event_loop
+            .register(&self.handler.connections[token].stream,
+                      token,
+                      EventSet::all(),
+                      PollOpt::level())
+            .unwrap();
+        token
+    }
+
+    fn add_listener(&mut self, listener: TcpListener) {
+        self.handler.listeners.push(listener);
+    }
+}
 
 /// Keeps the data that is nescary during packet handling.
 #[derive(Debug)]
 pub struct Handler {
     connections: Slab<Connection>,
-    listener: Option<TcpListener>,
+    listeners: Vec<TcpListener>,
 }
 
 impl Handler {
     /// Creates a new instance of a Handler. Does not listen for connections.
-    pub fn new() -> Self {
+    pub fn new(max_connections: usize) -> Self {
         Handler {
-            connections: Slab::new_starting_at(Token::from_usize(1), MAX_CONNECTIONS),
-            listener: None,
-        }
-    }
-
-    /// Creates a new instance of a Handler. Does listen for connections.
-    pub fn new_listener(listener: TcpListener) -> Self {
-        Handler {
-            connections: Slab::new_starting_at(Token::from_usize(1), MAX_CONNECTIONS),
-            listener: Some(listener),
+            connections: Slab::new_starting_at(Token::from_usize(1), max_connections),
+            listeners: Vec::new(),
         }
     }
 }
@@ -158,9 +215,23 @@ impl Connection {
     }
 }
 
+macro_rules! take_ev {
+    ($handler:expr, $event_loop:expr, |mut $fake_ev:ident| $body:block) => {
+        take_multi!($handler, $event_loop, |mut handler, mut event_loop| {
+            let mut $fake_ev = EventLoopImpl {
+                mio_event_loop: event_loop,
+                handler: handler,
+            };
+            $body;
+            handler = $fake_ev.handler;
+            event_loop = $fake_ev.mio_event_loop;
+        });
+    };
+}
+
 impl MioHandler for Handler {
     type Timeout = ();
-    type Message = HandlerMessage;
+    type Message = ();
     fn ready(&mut self, event_loop: &mut MioEventLoop<Handler>, token: Token, events: EventSet) {
         if events.is_readable() {
             // Read the 6 byte header of each packet, throw it into get_packet_length, then read that number of bytes.
@@ -173,7 +244,9 @@ impl MioHandler for Handler {
                 .expect(&format!("An error occured reading from socket {:?}", token));    // TODO: Figure out possible errors and take care of them.
             let length = get_packet_length(header).unwrap_or(0);
             if length == 0 {
-                kill(event_loop, token);
+                take_ev!(self, event_loop, |mut fake_ev| {
+                    fake_ev.kill(token);
+                });
                 // I directly kill the connection, becasue if the magic number doesn't match,
                 // the peer probably doesn't share the same protocol. It wouldn't understand a normal error packet.
                 return;
@@ -185,7 +258,9 @@ impl MioHandler for Handler {
             // I do this because Read.take takes a self, instead of a reasonable alternitive.
             // However &mut Read is it's self a Reader. So I use that instead.
             let dese = deserialize_packet(&packet).unwrap();
-            handle_packet(dese, token, event_loop);
+            take_ev!(self, event_loop, |mut fake_ev| {
+                handle_packet(dese, token, &mut fake_ev);
+            });
         }
 
         if events.is_writable() {
@@ -212,17 +287,17 @@ impl MioHandler for Handler {
                                      self.connections[token]));;
             }
         }
+    }
 
-        if self.listener.is_some() {
-            match self.listener.as_ref().unwrap().accept() {
+    fn tick(&mut self, event_loop: &mut MioEventLoop<Handler>) {
+        let mut to_init: Vec<Token> = Vec::new();
+        for listener in &self.listeners {
+            match listener.accept() {
                 Ok(Some((socket, address))) => {
                     let token = self.connections.insert(Connection::new(socket)).unwrap();
-                    send(event_loop,
-                         NetworkPacket::Init {
-                             version: VERSION.to_owned(),
-                             should_crash: ::check_should_crash(),
-                         },
-                         token);
+                    to_init.push(token);
+                    // Since self is currently borrowed, I can't send the init packet here.
+                    // I instead push the work to be done later.
                     info!("Accepted connection {}.", address);
                 }
                 Ok(None) => debug!("Recived Ok(None) in listener.accept()."),
@@ -230,53 +305,16 @@ impl MioHandler for Handler {
                 // TODO: See if any of these errors can be handled better.
             }
         }
-    }
-
-    fn notify(&mut self, event_loop: &mut MioEventLoop<Handler>, msg: HandlerMessage) {
-        match msg {
-            HandlerMessage::AddStream(stream, tx) => {
-                let token = self.connections.insert(Connection::new(stream)).unwrap();
-                event_loop.register(&self.connections[token].stream,
-                                    token,
-                                    EventSet::all(),
-                                    PollOpt::level())
-                          .unwrap();
-                tx.send(token).unwrap();
-            }
-            HandlerMessage::Send(packet, token) => {
-                self.connections[token].message_queue.push(packet);
-            }
-            HandlerMessage::Kill(token) => {
-                event_loop.deregister(&self.connections[token].stream).expect("io::Error while deregistering socket.");
-                self.connections[token].stream.shutdown(Shutdown::Both).expect("io::Error while shutting down socket.");
-                self.connections.remove(token);
-            }
+        for token in to_init {
+            take_ev!(self, event_loop, |mut fake_ev| {
+                fake_ev.send(token,
+                             NetworkPacket::Init {
+                                 version: VERSION.to_owned(),
+                                 should_crash: ::check_should_crash(),
+                             });
+            });
         }
     }
-}
-
-/// Add a socket to be checked during the event loop.
-///
-/// Do note that this function assumes that the socket has been properly inited acording to the protocol.
-/// Not doing so could cause hard to discover bugs if versions mismatch.
-pub fn add_socket(event_loop: &EventLoop, socket: TcpStream) -> Token {
-    let (tx, rx) = channel();   // How expensive is this? Should I be creating a whole new channel for just 1 message?
-    event_loop.channel().send(HandlerMessage::AddStream(socket, tx)).unwrap();
-    rx.recv().unwrap() // I should feel bad.
-}
-
-/// Send a NetworkPacket over the network.
-///
-/// This is a static function instead of an impl function because you can't impl on external structs. In this case, mio::EventLoop.
-pub fn send(event_loop: &EventLoop, to_send: NetworkPacket, token: Token) {
-    event_loop.channel().send(HandlerMessage::Send(to_send, token)).unwrap();
-}
-
-/// Kill a socket at the given token.
-///
-/// This is a static function instead of an impl function because you can't impl on external structs. In this case, mio::EventLoop.
-pub fn kill(event_loop: &EventLoop, token: Token) {
-    event_loop.channel().send(HandlerMessage::Kill(token)).unwrap();
 }
 
 fn seralize_packet(to_ser: &NetworkPacket) -> Vec<u8> {
@@ -317,23 +355,19 @@ fn deserialize_packet(to_de: &[u8]) -> Result<NetworkPacket, PacketDeseError> {
     Ok(try!(deserialize::<NetworkPacket>(to_de)))
 }
 
-fn handle_packet(to_handle: NetworkPacket, sender: Token, event_loop: &EventLoop) {
+fn handle_packet(to_handle: NetworkPacket, sender: Token, event_loop: &mut EventLoop) {
     match to_handle {
         NetworkPacket::Init{version, should_crash} => {
             if !should_crash && !::check_should_crash() {
-                send(event_loop,
-                     NetworkPacket::Error(NetworkError::ShouldCrashBothTrue),
-                     sender);
-                kill(event_loop, sender)
+                event_loop.send(sender,
+                                NetworkPacket::Error(NetworkError::ShouldCrashBothTrue));
+                event_loop.kill(sender);
             }
             if version != VERSION {
-                send(event_loop,
-                     NetworkPacket::Error(NetworkError::VersionMismatch(version.to_owned(), VERSION.to_owned())),
-                     sender)
+                event_loop.send(sender,
+                                NetworkPacket::Error(NetworkError::VersionMismatch(version.to_owned(), VERSION.to_owned())))
             }
         }
-        #[cfg(Test)]
-        NetworkPacket::Test => test::TEST_INT.fetch_add(1, Ordering::Relaxed),
         NetworkPacket::Error(error) => if ::check_should_crash() { panic!(error) } else { unimplemented!() },
     }
 }

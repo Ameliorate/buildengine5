@@ -1,4 +1,4 @@
-#![feature(custom_derive, plugin, stmt_expr_attributes)]
+#![feature(custom_derive, plugin, stmt_expr_attributes, log_syntax)]
 #![plugin(serde_macros)]
 #![deny(missing_docs,
         missing_debug_implementations, missing_copy_implementations,
@@ -18,6 +18,8 @@ extern crate serde;
 extern crate mio;
 extern crate either;
 extern crate slab;
+#[macro_use]
+extern crate take_mut;
 
 pub mod net;
 
@@ -28,7 +30,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::fmt::{Display, Error as FmtError, Formatter};
 
 use net::client::Client;
-use net::{EventLoop, Handler, client};
+use net::{EventLoop, EventLoopImpl, MAX_CONNECTIONS, client};
 
 use mio::tcp::TcpListener;
 
@@ -104,12 +106,10 @@ impl From<io::Error> for InitError {
 /// You probably, however don't want to mutate the state directly. That can mess up client-server syncronization.
 #[derive(Debug)]
 pub struct Engine {
-    /// Contatins all the networking state.
-    ///
-    /// Things like connections and the listener go here, as well as what packets need to be sent next opertunity.
-    pub handler: Handler,
     /// The networking event loop. Mostly used in other functions for sending, adding, and killing connections.
-    pub event_loop: EventLoop,
+    ///
+    /// Also contains all state relating to networking.
+    pub event_loop: Box<EventLoop>,
     /// The clientside or serverside state.
     ///
     /// Currently a Some if it is a client, or None if server.
@@ -119,24 +119,21 @@ pub struct Engine {
 impl Engine {
     /// Creates a new client game.
     pub fn new_client(server_address: SocketAddr) -> Result<Self, InitError> {
-        let event_loop = try!(EventLoop::new());
-        let handler = Handler::new();
-        let client = try!(Client::spawn_client(server_address, &event_loop));
+        let mut event_loop = try!(EventLoopImpl::new(MAX_CONNECTIONS));
+        let client = try!(Client::spawn_client(server_address, &mut event_loop));
         Ok(Engine {
-            handler: handler,
-            event_loop: event_loop,
+            event_loop: Box::new(event_loop),
             client_or_server: Some(client),
         })
     }
 
     /// Creates a new server.
     pub fn new_server(server_address: &SocketAddr) -> Result<Self, InitError> {
-        let event_loop = try!(EventLoop::new());
+        let mut event_loop = try!(EventLoopImpl::new(MAX_CONNECTIONS));
         let listener = try!(TcpListener::bind(server_address));
-        let handler = Handler::new_listener(listener);
+        event_loop.add_listener(listener);
         Ok(Engine {
-            handler: handler,
-            event_loop: event_loop,
+            event_loop: Box::new(event_loop),
             client_or_server: None,
         })
     }

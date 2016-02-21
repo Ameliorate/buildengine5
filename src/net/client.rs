@@ -8,7 +8,7 @@ use std::fmt::Formatter;
 use std::net::SocketAddr;
 use std::fmt::Display;
 
-use net::{EventLoop, NetworkPacket, add_socket, send};
+use net::{EventLoop, NetworkPacket};
 use VERSION;
 use mio::Token;
 use mio::tcp::TcpStream;
@@ -57,15 +57,19 @@ pub struct Client {
 
 impl Client {
     /// Creates a client and connects to the remote server.
-    pub fn spawn_client(server_address: SocketAddr, event_loop: &EventLoop) -> Result<Client, InitError> {
+    pub fn spawn_client(server_address: SocketAddr, event_loop: &mut EventLoop) -> Result<Client, InitError> {
         let socket = try!(TcpStream::connect(&server_address));
-        let token = add_socket(event_loop, socket);
-        send(event_loop,
-             NetworkPacket::Init {
-                 version: VERSION.to_string(),
-                 should_crash: ::check_should_crash(),
-             },
-             token);
+        let token = event_loop.add_socket(socket);
+        event_loop.send(token,
+                        NetworkPacket::Init {
+                            version: VERSION.to_string(),
+                            should_crash: ::check_should_crash(),
+                        });
         Ok(Client { token: token })
+    }
+
+    /// Shutdown the connection to the server accocated with this client.
+    pub fn shutdown(&self, event_loop: &mut EventLoop) {
+        event_loop.kill(self.token);
     }
 }
