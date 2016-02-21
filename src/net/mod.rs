@@ -20,7 +20,7 @@ use mio::util::Slab;
 use slab::Index;
 
 pub mod client;
-#[cfg(Test)]
+#[cfg(test)]
 pub mod test;
 
 /// Standard number to ensure network connections are syncronized and the same protocol is being used.
