@@ -183,6 +183,63 @@ impl EventLoop for EventLoopImpl {
     }
 }
 
+/// Like `EventLoopImpl`, but contains the fields by reference, instead of by value.
+#[derive(Debug)]
+pub struct EventLoopImplRef<'a, 'b> {
+    mio_event_loop: &'a mut MioEventLoop<Handler>,
+    handler: &'b mut Handler,
+}
+
+impl<'a, 'b> EventLoopImplRef<'a, 'b> {
+    /// Helper function for creation of a EventLoopImplRef.
+    pub fn new(mio_event_loop: &'a mut MioEventLoop<Handler>, handler: &'b mut Handler) -> EventLoopImplRef<'a, 'b> {
+        EventLoopImplRef {
+            mio_event_loop: mio_event_loop,
+            handler: handler,
+        }
+    }
+}
+
+impl<'a, 'b> EventLoop for EventLoopImplRef<'a, 'b> {
+    fn run_once(&mut self) -> Result<(), io::Error> {
+        self.mio_event_loop.run_once(&mut self.handler, None)
+    }
+
+    fn run(&mut self) -> Result<(), io::Error> {
+        self.mio_event_loop.run(&mut self.handler)
+    }
+
+    fn shutdown(&mut self) {
+        self.mio_event_loop.shutdown();
+    }
+
+    fn send(&mut self, target: Token, packet: NetworkPacket) {
+        self.handler.connections[target].message_queue.push(packet);
+    }
+
+    fn kill(&mut self, target: Token) {
+        self.mio_event_loop.deregister(&self.handler.connections[target].stream).expect("io::Error while deregistering socket.");
+        self.handler.connections[target].stream.shutdown(Shutdown::Both).expect("io::Error while shutting down socket.");
+        // TODO: Better decern and handle possible errors.
+        self.handler.connections.remove(target);
+    }
+
+    fn add_socket(&mut self, socket: TcpStream) -> Token {
+        let token = self.handler.connections.insert(Connection::new(socket)).unwrap();
+        self.mio_event_loop
+            .register(&self.handler.connections[token].stream,
+                      token,
+                      EventSet::all(),
+                      PollOpt::level())
+            .unwrap();
+        token
+    }
+
+    fn add_listener(&mut self, listener: TcpListener) {
+        self.handler.listeners.push(listener);
+    }
+}
+
 /// Keeps the data that is nescary during packet handling.
 #[derive(Debug)]
 pub struct Handler {
@@ -215,20 +272,6 @@ impl Connection {
     }
 }
 
-macro_rules! take_ev {
-    ($handler:expr, $event_loop:expr, |mut $fake_ev:ident| $body:block) => {
-        take_multi!($handler, $event_loop, |mut handler, mut event_loop| {
-            let mut $fake_ev = EventLoopImpl {
-                mio_event_loop: event_loop,
-                handler: handler,
-            };
-            $body;
-            handler = $fake_ev.handler;
-            event_loop = $fake_ev.mio_event_loop;
-        });
-    };
-}
-
 impl MioHandler for Handler {
     type Timeout = ();
     type Message = ();
@@ -244,9 +287,7 @@ impl MioHandler for Handler {
                 .expect(&format!("An error occured reading from socket {:?}", token));    // TODO: Figure out possible errors and take care of them.
             let length = get_packet_length(header).unwrap_or(0);
             if length == 0 {
-                take_ev!(self, event_loop, |mut fake_ev| {
-                    fake_ev.kill(token);
-                });
+                EventLoopImplRef::new(event_loop, self).kill(token);
                 // I directly kill the connection, becasue if the magic number doesn't match,
                 // the peer probably doesn't share the same protocol. It wouldn't understand a normal error packet.
                 return;
@@ -258,9 +299,7 @@ impl MioHandler for Handler {
             // I do this because Read.take takes a self, instead of a reasonable alternitive.
             // However &mut Read is it's self a Reader. So I use that instead.
             let dese = deserialize_packet(&packet).unwrap();
-            take_ev!(self, event_loop, |mut fake_ev| {
-                handle_packet(dese, token, &mut fake_ev);
-            });
+            handle_packet(dese, token, &mut EventLoopImplRef::new(event_loop, self));
         }
 
         if events.is_writable() {
@@ -306,13 +345,11 @@ impl MioHandler for Handler {
             }
         }
         for token in to_init {
-            take_ev!(self, event_loop, |mut fake_ev| {
-                fake_ev.send(token,
-                             NetworkPacket::Init {
-                                 version: VERSION.to_owned(),
-                                 should_crash: ::check_should_crash(),
-                             });
-            });
+            EventLoopImplRef::new(event_loop, self).send(token,
+                         NetworkPacket::Init {
+                             version: VERSION.to_owned(),
+                             should_crash: ::check_should_crash(),
+                         });
         }
     }
 }

@@ -18,8 +18,6 @@ extern crate serde;
 extern crate mio;
 extern crate either;
 extern crate slab;
-#[macro_use]
-extern crate take_mut;
 
 pub mod net;
 
