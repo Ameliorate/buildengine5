@@ -1,4 +1,4 @@
-use byteorder::{LittleEndian, ByteOrder};
+use byteorder::{ByteOrder, LittleEndian};
 
 #[test]
 fn get_packet_length_correct() {

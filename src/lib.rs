@@ -127,7 +127,7 @@ impl Engine {
 
     /// Creates a new server.
     pub fn new_server(server_address: &SocketAddr) -> Result<Self, InitError> {
-        let mut event_loop = try!(EventLoopImpl::new(MAX_CONNECTIONS));
+        let event_loop = try!(EventLoopImpl::new(MAX_CONNECTIONS));
         let listener = try!(TcpListener::bind(server_address));
         event_loop.add_listener(listener);
         Ok(Engine {
