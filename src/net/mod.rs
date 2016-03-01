@@ -15,6 +15,7 @@ use VERSION;
 use bincode::serde::{DeserializeError, deserialize, serialize};
 use bincode::SizeLimit;
 use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
+use mio;
 use mio::{EventLoop as MioEventLoop, EventSet, Handler as MioHandler, NotifyError, PollOpt, Token};
 use mio::tcp::{TcpListener, TcpStream};
 use mio::tcp;
@@ -285,6 +286,80 @@ impl<'a, 'b> EventLoop for EventLoopImplMutRef<'a, 'b> {
     }
 }
 
+/// Provides an immutable reference to an EventLoopImpl.
+///
+/// Any method requiring a mutable reference will panic when called.
+#[derive(Debug)]
+pub struct EventLoopImplRef {
+    channel: mio::Sender<HandlerMessage>,
+}
+
+impl<'a> From<&'a mut EventLoopImpl> for EventLoopImplRef {
+    fn from(from: &'a mut EventLoopImpl) -> Self {
+        EventLoopImplRef { channel: from.mio_event_loop.channel() }
+    }
+}
+
+impl EventLoop for EventLoopImplRef {
+    fn run_once(&mut self) -> Result<(), io::Error> {
+        panic!("Called run_once() on a EventLoopImplRef. This is an immutable reference and can't use mutable methods.")
+    }
+
+    fn run(&mut self) -> Result<(), io::Error> {
+        panic!("Called run() on a EventLoopImplRef. This is an immutable reference and can't use mutable methods.")
+    }
+
+    fn shutdown(&self) {
+        match self.channel.send(HandlerMessage::Shutdown) {
+            Err(NotifyError::Io(err)) => panic!("Io Error while calling shutdown() on event loop: {}", err),
+            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling shutdown()! Is it running?"),
+            Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling shutdown()"),
+            Ok(val) => val,
+        };
+    }
+
+    fn send(&self, target: Token, packet: NetworkPacket) {
+        match self.channel.send(HandlerMessage::Send(target, packet)) {
+            Err(NotifyError::Io(err)) => panic!("Io Error while calling send() on event loop: {}", err),
+            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling send()! Is it running?"),
+            Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling send()"),
+            Ok(val) => val,
+        };
+    }
+
+    fn kill(&self, target: Token) {
+        match self.channel.send(HandlerMessage::Kill(target)) {
+            Err(NotifyError::Io(err)) => panic!("Io Error while calling kill() on event loop: {}", err),
+            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling kill()! Is it running?"),
+            Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling kill()"),
+            Ok(val) => val,
+        };
+    }
+
+    fn add_socket(&self, socket: TcpStream) -> Token {
+        let (tx, rx) = channel();
+        match self.channel.send(HandlerMessage::AddSocket(socket, tx)) {
+            Err(NotifyError::Io(err)) => panic!("Io Error while calling add_socket() on event loop: {}", err),
+            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling add_socket()! Is it running?"),
+            Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling add_socket()"),
+            Ok(val) => val,
+        };
+        rx.recv().unwrap()
+    }
+
+    fn add_listener(&self, listener: TcpListener) {
+        match self.channel.send(HandlerMessage::AddListener(listener)) {
+            Err(NotifyError::Io(err)) => {
+                panic!("Io Error while calling add_listener() on event loop: {}",
+                       err)
+            }
+            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling add_listener()! Is it running?"),
+            Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling add_listener()"),
+            Ok(val) => val,
+        };
+    }
+}
+
 /// A message to be sent to the handler accocated with a event loop.
 #[derive(Debug)]
 pub enum HandlerMessage {
@@ -406,10 +481,10 @@ impl MioHandler for Handler {
         }
         for token in to_init {
             EventLoopImplMutRef::new(event_loop, self).send(token,
-                                                         NetworkPacket::Init {
-                                                             version: VERSION.to_owned(),
-                                                             should_crash: ::check_should_crash(),
-                                                         });
+                                                            NetworkPacket::Init {
+                                                                version: VERSION.to_owned(),
+                                                                should_crash: ::check_should_crash(),
+                                                            });
         }
     }
 
