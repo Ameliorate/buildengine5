@@ -2,8 +2,10 @@ use std::thread;
 use std::sync::mpsc::{TryRecvError, channel};
 use std::time::Duration;
 use std::io;
+use std::net::{SocketAddr, SocketAddrV4, Ipv4Addr};
 
 use byteorder::{ByteOrder, LittleEndian};
+use mio::tcp::TcpListener;
 
 use net::EventLoop;
 
@@ -50,12 +52,33 @@ fn event_loop_impl_shutdown() {
     // This may, once in a very long time, fail. It really shouldn't, but it is possible.
     // Just raise the number or try again if it fails.
     match rx.try_recv() {
-        Err(TryRecvError::Empty) => panic!("EventLoopImpl did not stop after calling shutdown()"),
+        Err(TryRecvError::Empty) => {
+            panic!("EventLoopImpl did not stop after calling shutdown()! This fact is depended on \
+                    by other unit tests, so ctrl+c here")
+        }
         Err(TryRecvError::Disconnected) => {
-            panic!("EventLoop somehow disconnected it's channel without stopping")
+            panic!("EventLoop somehow disconnected it's channel without stopping! This fact is \
+                    depended on by other unit tests, so ctrl+c here")
         }
         Ok(res) => res,
     }
     .unwrap();
     thread.join().unwrap();
+}
+
+#[test]
+fn event_loop_impl_add_listener() {
+    let mut event_loop = super::EventLoopImpl::new(super::MAX_CONNECTIONS).unwrap();
+    let event_loop_ref: super::EventLoopImplRef = (&mut event_loop).into();
+    let listener = TcpListener::bind(&SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0),
+                                                                       25567)))
+                       .unwrap();
+    let thread = thread::spawn(move || {
+        event_loop.run().unwrap();
+        event_loop
+    });
+    event_loop_ref.add_listener(listener);
+    event_loop_ref.shutdown();
+    let event_loop = thread.join().unwrap();
+    assert_eq!(event_loop.handler.listeners.len(), 1);
 }
