@@ -1,11 +1,12 @@
 use std::thread;
+use std::thread::JoinHandle;
 use std::sync::mpsc::{TryRecvError, channel};
 use std::time::Duration;
 use std::io;
 use std::net::{SocketAddr, SocketAddrV4, Ipv4Addr};
 
 use byteorder::{ByteOrder, LittleEndian};
-use mio::tcp::TcpListener;
+use mio::tcp::{TcpListener, TcpStream};
 
 use net::EventLoop;
 
@@ -66,19 +67,67 @@ fn event_loop_impl_shutdown() {
     thread.join().unwrap();
 }
 
-#[test]
-fn event_loop_impl_add_listener() {
+fn event_loop_helper() -> (super::EventLoopImplRef, JoinHandle<super::EventLoopImpl>) {
     let mut event_loop = super::EventLoopImpl::new(super::MAX_CONNECTIONS).unwrap();
     let event_loop_ref: super::EventLoopImplRef = (&mut event_loop).into();
-    let listener = TcpListener::bind(&SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0),
-                                                                       25567)))
-                       .unwrap();
-    let thread = thread::spawn(move || {
+    (event_loop_ref,
+     thread::spawn(move || {
         event_loop.run().unwrap();
         event_loop
-    });
+    }))
+}
+
+#[test]
+fn event_loop_impl_add_listener() {
+    let (event_loop_ref, thread) = event_loop_helper();
+    let listener = TcpListener::bind(&SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127,
+                                                                                     0,
+                                                                                     0,
+                                                                                     1),
+                                                                       0)))
+                       .unwrap();
     event_loop_ref.add_listener(listener);
     event_loop_ref.shutdown();
     let event_loop = thread.join().unwrap();
     assert_eq!(event_loop.handler.listeners.len(), 1);
+}
+
+#[test]
+fn event_loop_impl_add_socket() {
+    let (event_loop_ref, thread) = event_loop_helper();
+    let listener = TcpListener::bind(&SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127,
+                                                                                     0,
+                                                                                     0,
+                                                                                     1),
+                                                                       25567)))
+                       .unwrap();
+    let _stream_local = TcpStream::connect(&SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127,
+                                                                                           0,
+                                                                                           0,
+                                                                                           1),
+                                                                             25567)));
+    let stream_remote;
+    loop {
+        match listener.accept().unwrap() {
+            None => {}  // I think this is that there is no socket avalable to accept.
+            Some((stream, _addr)) => {
+                stream_remote = stream;
+                break;
+            }
+        }
+    }
+    event_loop_ref.add_socket(stream_remote);
+    event_loop_ref.shutdown();
+    let event_loop = thread.join().unwrap();
+    assert_eq!(event_loop.handler.connections.count(), 1);
+}
+
+#[test]
+fn event_loop_impl_kill() {
+    unimplemented!()
+}
+
+#[test]
+fn event_loop_impl_send() {
+    unimplemented!()
 }
