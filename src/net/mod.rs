@@ -9,6 +9,10 @@ use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
 use std::error::Error;
 use std::sync::mpsc::{Sender, channel};
+#[cfg(test)]
+use std::sync::atomic::Ordering;
+// Since this import is only used while compiling with the test cfg,
+// it would cause an unused import warning when compiling in normal mode.
 
 use VERSION;
 
@@ -55,6 +59,9 @@ pub enum NetworkPacket {
     },
     /// An error that should crash the game and show an error to the user, but only on a client.
     Error(NetworkError),
+    /// Increments a value internally. It's supposed to be used for unit testing.
+    #[cfg(test)]
+    Test,
 }
 
 /// Sent in the case of an error that should be sent to the peer.
@@ -565,5 +572,10 @@ fn handle_packet(to_handle: NetworkPacket, sender: Token, event_loop: &mut Event
             }
         }
         NetworkPacket::Error(error) => if ::check_should_crash() { panic!(error) } else { unimplemented!() },
+        #[cfg(test)]
+        NetworkPacket::Test => {
+            test::TEST_VAL.fetch_add(1, Ordering::Relaxed);
+            ()
+        }
     }
 }

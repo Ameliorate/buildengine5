@@ -4,11 +4,18 @@ use std::sync::mpsc::{TryRecvError, channel};
 use std::time::Duration;
 use std::io;
 use std::net::{SocketAddr, SocketAddrV4, Ipv4Addr};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use byteorder::{ByteOrder, LittleEndian};
 use mio::tcp::{TcpListener, TcpStream};
 
 use net::EventLoop;
+
+lazy_static! {
+    /// Used for unit testing sends.
+    #[derive(Debug)]
+    pub static ref TEST_VAL: AtomicUsize = AtomicUsize::new(0);
+}
 
 #[test]
 fn get_packet_length_correct() {
@@ -129,5 +136,45 @@ fn event_loop_impl_kill() {
 
 #[test]
 fn event_loop_impl_send() {
-    unimplemented!()
+    let (event_loop_ref_local, thread_local) = event_loop_helper();
+    let (event_loop_ref_remote, thread_remote) = event_loop_helper();
+    let listener = TcpListener::bind(&SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127,
+                                                                                     0,
+                                                                                     0,
+                                                                                     1),
+                                                                       25568)))
+                       .unwrap();
+    let stream_local = TcpStream::connect(&SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127,
+                                                                                          0,
+                                                                                          0,
+                                                                                          1),
+                                                                            25568)))
+                           .unwrap();
+    let stream_remote;
+    loop {
+        match listener.accept().unwrap() {
+            None => {}  // I think this is that there is no socket avalable to accept.
+            Some((stream, _addr)) => {
+                stream_remote = stream;
+                break;
+            }
+        }
+    }
+    let _token_remote = event_loop_ref_local.add_socket(stream_local);
+    let token_local = event_loop_ref_remote.add_socket(stream_remote);
+
+    let old_test_val = TEST_VAL.load(Ordering::Relaxed);
+    event_loop_ref_remote.send(token_local, super::NetworkPacket::Test);
+    thread::sleep(Duration::from_millis(250));
+    let new_test_val = TEST_VAL.load(Ordering::Relaxed);
+
+    event_loop_ref_local.shutdown();
+    event_loop_ref_remote.shutdown();
+    let _event_loop_local = thread_local.join().unwrap();
+    let _event_loop_remote = thread_remote.join().unwrap();
+
+    assert!(old_test_val < new_test_val,
+            "old_test_val < new_test_val, old_test_val: {}, new_test_val: {}",
+            old_test_val,
+            new_test_val);
 }
