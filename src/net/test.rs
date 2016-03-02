@@ -11,6 +11,9 @@ use mio::tcp::{TcpListener, TcpStream};
 
 use net::EventLoop;
 
+/// The amount of time to wait while unit testing to make sure threads are syncronized when there is no other method.
+const WAIT_TIME_MS: usize = 250;
+
 lazy_static! {
     /// Used for unit testing sends.
     #[derive(Debug)]
@@ -56,7 +59,7 @@ fn event_loop_impl_shutdown() {
     let event_loop_ref: super::EventLoopImplRef = (&mut event_loop).into();
     let thread = thread::spawn(move || tx.send(event_loop.run()).unwrap());
     event_loop_ref.shutdown();
-    thread::sleep(Duration::from_millis(250));
+    thread::sleep(Duration::from_millis(WAIT_TIME_MS));
     // This may, once in a very long time, fail. It really shouldn't, but it is possible.
     // Just raise the number or try again if it fails.
     match rx.try_recv() {
@@ -131,7 +134,37 @@ fn event_loop_impl_add_socket() {
 
 #[test]
 fn event_loop_impl_kill() {
-    unimplemented!()
+    let (event_loop_ref, thread) = event_loop_helper();
+    let listener = TcpListener::bind(&SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127,
+                                                                                     0,
+                                                                                     0,
+                                                                                     1),
+                                                                       25569)))
+                       .unwrap();
+    let stream_local = TcpStream::connect(&SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127,
+                                                                                          0,
+                                                                                          0,
+                                                                                          1),
+                                                                            25569)))
+                           .unwrap();
+    let _stream_remote;
+    loop {
+        match listener.accept().unwrap() {
+            None => {}  // I think this is that there is no socket avalable to accept.
+            Some((stream, _addr)) => {
+                _stream_remote = stream;
+                break;
+            }
+        }
+    }
+    let token = event_loop_ref.add_socket(stream_local);
+    event_loop_ref.kill(token);
+    event_loop_ref.shutdown();
+    let event_loop = thread.join().unwrap();
+    assert_eq!(event_loop.handler.connections.count(), 0);
+    // TODO: Check if it actually closes the socket.
+    // I can't think of a way to do this. It just isn't exposed in mio's API, io::Read's API, nowhere.
+    // The closest I can get is reading 0 bytes, but even that is ambiguous.
 }
 
 #[test]
@@ -165,7 +198,7 @@ fn event_loop_impl_send() {
 
     let old_test_val = TEST_VAL.load(Ordering::Relaxed);
     event_loop_ref_remote.send(token_local, super::NetworkPacket::Test);
-    thread::sleep(Duration::from_millis(250));
+    thread::sleep(Duration::from_millis(WAIT_TIME_MS));
     let new_test_val = TEST_VAL.load(Ordering::Relaxed);
 
     event_loop_ref_local.shutdown();
