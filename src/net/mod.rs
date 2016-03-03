@@ -1,129 +1,50 @@
-//! Netcode for buildengine. Kinda messy.
+//! Netcode for buildengine.
 //!
 //! At some time, most of this code may be moved into a new crate.
 
 use std::convert::From;
+use std::error::Error;
+use std::fmt;
+use std::fmt::{Debug, Display, Formatter};
 use std::io;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, ToSocketAddrs};
-use std::fmt;
-use std::fmt::{Debug, Display, Formatter};
-use std::error::Error;
-use std::sync::mpsc::{Sender, channel};
 #[cfg(test)]
 use std::sync::atomic::Ordering;
 // Since this import is only used while compiling with the test cfg,
 // it would cause an unused import warning when compiling in normal mode.
-
-use VERSION;
+use std::sync::mpsc::{Sender, channel};
 
 use bincode::serde::{DeserializeError, deserialize, serialize};
 use bincode::SizeLimit;
 use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
 use mio;
 use mio::{EventLoop as MioEventLoop, EventSet, Handler as MioHandler, NotifyError, PollOpt, Token};
-use mio::tcp::{TcpListener, TcpStream};
 use mio::tcp;
+use mio::tcp::{TcpListener, TcpStream};
 use mio::util::Slab;
 use slab::Index;
 
+use VERSION;
+
 pub mod client;
+
 #[cfg(test)]
 pub mod test;
 
-/// Standard number to ensure network connections are syncronized and the same protocol is being used.
-/// Reexported incase it is of use for something not-networking.
-pub const NET_MAGIC_NUMBER: u32 = 0xCB011043; //0xcafebade + 0x25565, because programming references.
-/// Default port for clients and servers to connect on.
-///
-/// Mostly exposed for launchers to use, but is also used in unit testing and the like.
-pub const STANDARD_PORT: u16 = 25566;
 /// The maximum nunber of connections that can be had.
 ///
 /// If the number of connections exceeds this number, new connections should be denied.
 pub const MAX_CONNECTIONS: usize = 1024;
 
-/// Parses a str to a SocketAddr.
+/// Standard number to ensure network connections are syncronized and the same protocol is being used.
+/// Reexported incase it is of use for something not-networking.
+pub const NET_MAGIC_NUMBER: u32 = 0xCB011043; //0xcafebade + 0x25565, because programming references.
+
+/// Default port for clients and servers to connect on.
 ///
-/// This is a function because while str implements ToSocketAddrs, it requires a good bit of boilerplate to use.
-pub fn ip(ip_addr: &str) -> SocketAddr {
-    if ip_addr.starts_with("localhost") {
-        panic!("Because localhost can resolve to both 127.0.0.1, and the vairous IPV6 versions of 127.0.0.1, it may not be used. Please instead use 127.0.0.1");
-    }
-    let mut iter = ip_addr.to_socket_addrs().unwrap();
-    let ip = iter.next().unwrap();
-    if iter.next() != None {
-        panic!("The given ip to net::ip() resolved to more than 1 SocketAddr");
-    }
-    ip
-}
-
-/// Messages that can be sent between peers to facilitate vairous actions.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum NetworkPacket {
-    /// Sent on connection to verify everything is in sync.
-    Init {
-        /// The curent version of the local game.
-        ///
-        /// Should be formatted according to Scematic Versioning.
-        version: String,
-        /// If the local game should crash when an error occours.
-        ///
-        /// Two peers should not have this as false, because should_crash will send the error to the remote peer and make it crash instead.
-        /// This would cause a infinite loop if both were to do it.
-        should_crash: bool,
-    },
-    /// An error that should crash the game and show an error to the user, but only on a client.
-    Error(NetworkError),
-    /// Increments a value internally. It's supposed to be used for unit testing.
-    #[cfg(test)]
-    Test,
-}
-
-/// Sent in the case of an error that should be sent to the peer.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum NetworkError {
-    /// If the versions mismatch sufficently to become incompatible with each other.
-    VersionMismatch(String, String),
-    /// If both peers have should_crash == false, then this error should be sent.
-    ///
-    /// Do note that this error should not be rewrapped into a reerror, since it would cause a loop.
-    /// Instead, it should be logged and ignored, as the connection will be killed shortly after.
-    ShouldCrashBothTrue,
-}
-
-impl Display for NetworkError {
-    fn fmt(&self, fmt: &mut Formatter) -> Result<(), fmt::Error> {
-        match *self {
-            NetworkError::VersionMismatch(ref ver1, ref ver2) => {
-                write!(fmt,
-                       "VersionMismatch: The versions of the client and server attempting to connect mismatch. ver1: {}, ver2: {}",
-                       ver1,
-                       ver2)
-            }
-            NetworkError::ShouldCrashBothTrue => {
-                write!(fmt,
-                       "ShouldCrashBothTrue: Both peers have should_crash == false.")
-            }
-        }
-    }
-}
-
-impl Error for NetworkError {
-    fn description(&self) -> &str {
-        match *self {
-            NetworkError::VersionMismatch(_, _) => "VersionMismatch: The versions of the client and server attempting to connect mismatch.",
-            NetworkError::ShouldCrashBothTrue => "ShouldCrashBothTrue: Both peers have should_crash == false.",
-        }
-    }
-
-    fn cause(&self) -> Option<&Error> {
-        match *self {
-            NetworkError::VersionMismatch(_, _) => None,
-            NetworkError::ShouldCrashBothTrue => None,
-        }
-    }
-}
+/// Mostly exposed for launchers to use, but is also used in unit testing and the like.
+pub const STANDARD_PORT: u16 = 25566;
 
 /// A networking event loop. Is supposed to allow the capability to do a number of networking tasks generically.
 ///
@@ -153,6 +74,21 @@ pub trait EventLoop: Debug {
     fn add_listener(&self, listener: TcpListener);
 }
 
+#[derive(Debug)]
+struct Connection {
+    message_queue: Vec<NetworkPacket>,
+    stream: TcpStream,
+}
+
+impl Connection {
+    fn new(stream: TcpStream) -> Connection {
+        Connection {
+            stream: stream,
+            message_queue: Vec::new(),
+        }
+    }
+}
+
 /// Primary impl of EventLoop. Actually does the networking tasks described.
 #[derive(Debug)]
 pub struct EventLoopImpl {
@@ -173,83 +109,6 @@ impl EventLoopImpl {
 }
 
 impl EventLoop for EventLoopImpl {
-    fn run_once(&mut self) -> Result<(), io::Error> {
-        self.mio_event_loop.run_once(&mut self.handler, None)
-    }
-
-    fn run(&mut self) -> Result<(), io::Error> {
-        self.mio_event_loop.run(&mut self.handler)
-    }
-
-    fn shutdown(&self) {
-        match self.mio_event_loop.channel().send(HandlerMessage::Shutdown) {
-            Err(NotifyError::Io(err)) => panic!("Io Error while calling shutdown() on event loop: {}", err),
-            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling shutdown()! Is it running?"),
-            Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling shutdown()"),
-            Ok(val) => val,
-        };
-    }
-
-    fn send(&self, target: Token, packet: NetworkPacket) {
-        match self.mio_event_loop.channel().send(HandlerMessage::Send(target, packet)) {
-            Err(NotifyError::Io(err)) => panic!("Io Error while calling send() on event loop: {}", err),
-            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling send()! Is it running?"),
-            Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling send()"),
-            Ok(val) => val,
-        };
-    }
-
-    fn kill(&self, target: Token) {
-        match self.mio_event_loop.channel().send(HandlerMessage::Kill(target)) {
-            Err(NotifyError::Io(err)) => panic!("Io Error while calling kill() on event loop: {}", err),
-            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling kill()! Is it running?"),
-            Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling kill()"),
-            Ok(val) => val,
-        };
-    }
-
-    fn add_socket(&self, socket: TcpStream) -> Token {
-        let (tx, rx) = channel();
-        match self.mio_event_loop.channel().send(HandlerMessage::AddSocket(socket, tx)) {
-            Err(NotifyError::Io(err)) => panic!("Io Error while calling add_socket() on event loop: {}", err),
-            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling add_socket()! Is it running?"),
-            Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling add_socket()"),
-            Ok(val) => val,
-        };
-        rx.recv().unwrap()
-    }
-
-    fn add_listener(&self, listener: TcpListener) {
-        match self.mio_event_loop.channel().send(HandlerMessage::AddListener(listener)) {
-            Err(NotifyError::Io(err)) => {
-                panic!("Io Error while calling add_listener() on event loop: {}",
-                       err)
-            }
-            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling add_listener()! Is it running?"),
-            Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling add_listener()"),
-            Ok(val) => val,
-        };
-    }
-}
-
-/// Like `EventLoopImpl`, but contains the fields by reference, instead of by value.
-#[derive(Debug)]
-pub struct EventLoopImplMutRef<'a, 'b> {
-    mio_event_loop: &'a mut MioEventLoop<Handler>,
-    handler: &'b mut Handler,
-}
-
-impl<'a, 'b> EventLoopImplMutRef<'a, 'b> {
-    /// Helper function for creation of a EventLoopImplMutRef.
-    pub fn new(mio_event_loop: &'a mut MioEventLoop<Handler>, handler: &'b mut Handler) -> EventLoopImplMutRef<'a, 'b> {
-        EventLoopImplMutRef {
-            mio_event_loop: mio_event_loop,
-            handler: handler,
-        }
-    }
-}
-
-impl<'a, 'b> EventLoop for EventLoopImplMutRef<'a, 'b> {
     fn run_once(&mut self) -> Result<(), io::Error> {
         self.mio_event_loop.run_once(&mut self.handler, None)
     }
@@ -383,19 +242,81 @@ impl EventLoop for EventLoopImplRef {
     }
 }
 
-/// A message to be sent to the handler accocated with a event loop.
+/// Like `EventLoopImpl`, but contains the fields by reference, instead of by value.
 #[derive(Debug)]
-pub enum HandlerMessage {
-    /// Shutdown the eventloop next iteration.
-    Shutdown,
-    /// Send a network packet to a remote peer.
-    Send(Token, NetworkPacket),
-    /// Disconnect from a remote peer.
-    Kill(Token),
-    /// Add a socket to be checked each iteration of the event loop.
-    AddSocket(TcpStream, Sender<Token>),
-    /// Add a listener to be checked for new connections each iteration fo the event loop.
-    AddListener(TcpListener),
+pub struct EventLoopImplMutRef<'a, 'b> {
+    mio_event_loop: &'a mut MioEventLoop<Handler>,
+    handler: &'b mut Handler,
+}
+
+impl<'a, 'b> EventLoopImplMutRef<'a, 'b> {
+    /// Helper function for creation of a EventLoopImplMutRef.
+    pub fn new(mio_event_loop: &'a mut MioEventLoop<Handler>, handler: &'b mut Handler) -> EventLoopImplMutRef<'a, 'b> {
+        EventLoopImplMutRef {
+            mio_event_loop: mio_event_loop,
+            handler: handler,
+        }
+    }
+}
+
+impl<'a, 'b> EventLoop for EventLoopImplMutRef<'a, 'b> {
+    fn run_once(&mut self) -> Result<(), io::Error> {
+        self.mio_event_loop.run_once(&mut self.handler, None)
+    }
+
+    fn run(&mut self) -> Result<(), io::Error> {
+        self.mio_event_loop.run(&mut self.handler)
+    }
+
+    fn shutdown(&self) {
+        match self.mio_event_loop.channel().send(HandlerMessage::Shutdown) {
+            Err(NotifyError::Io(err)) => panic!("Io Error while calling shutdown() on event loop: {}", err),
+            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling shutdown()! Is it running?"),
+            Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling shutdown()"),
+            Ok(val) => val,
+        };
+    }
+
+    fn send(&self, target: Token, packet: NetworkPacket) {
+        match self.mio_event_loop.channel().send(HandlerMessage::Send(target, packet)) {
+            Err(NotifyError::Io(err)) => panic!("Io Error while calling send() on event loop: {}", err),
+            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling send()! Is it running?"),
+            Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling send()"),
+            Ok(val) => val,
+        };
+    }
+
+    fn kill(&self, target: Token) {
+        match self.mio_event_loop.channel().send(HandlerMessage::Kill(target)) {
+            Err(NotifyError::Io(err)) => panic!("Io Error while calling kill() on event loop: {}", err),
+            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling kill()! Is it running?"),
+            Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling kill()"),
+            Ok(val) => val,
+        };
+    }
+
+    fn add_socket(&self, socket: TcpStream) -> Token {
+        let (tx, rx) = channel();
+        match self.mio_event_loop.channel().send(HandlerMessage::AddSocket(socket, tx)) {
+            Err(NotifyError::Io(err)) => panic!("Io Error while calling add_socket() on event loop: {}", err),
+            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling add_socket()! Is it running?"),
+            Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling add_socket()"),
+            Ok(val) => val,
+        };
+        rx.recv().unwrap()
+    }
+
+    fn add_listener(&self, listener: TcpListener) {
+        match self.mio_event_loop.channel().send(HandlerMessage::AddListener(listener)) {
+            Err(NotifyError::Io(err)) => {
+                panic!("Io Error while calling add_listener() on event loop: {}",
+                       err)
+            }
+            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling add_listener()! Is it running?"),
+            Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling add_listener()"),
+            Ok(val) => val,
+        };
+    }
 }
 
 /// Keeps the data that is nescary during packet handling.
@@ -411,21 +332,6 @@ impl Handler {
         Handler {
             connections: Slab::new_starting_at(Token::from_usize(1), max_connections),
             listeners: Vec::new(),
-        }
-    }
-}
-
-#[derive(Debug)]
-struct Connection {
-    message_queue: Vec<NetworkPacket>,
-    stream: TcpStream,
-}
-
-impl Connection {
-    fn new(stream: TcpStream) -> Connection {
-        Connection {
-            stream: stream,
-            message_queue: Vec::new(),
         }
     }
 }
@@ -536,27 +442,90 @@ impl MioHandler for Handler {
     }
 }
 
-fn seralize_packet(to_ser: &NetworkPacket) -> Vec<u8> {
-    let mut result: Vec<u8> = Vec::new();
-    result.write_u32::<LittleEndian>(NET_MAGIC_NUMBER).unwrap();   // No possible errors here.
-    // The NET_MAGIC_NUMBER is used before every packet, so incase the stream is desynced for whatever reason, the game doesn't just read arbratrary data and crash badly.
-    // Instead, it can either recover somehow, by disconnecting and reconnecting, or just erroring gracefully.
-    let mut encoded = serialize(to_ser, SizeLimit::Infinite).unwrap();
-    // Since the size limit is infinite and i'm not encoding to a stream, there is no error and I can safely unwrap();
-    result.write_u16::<LittleEndian>(encoded.len() as u16).unwrap();
-    result.append(&mut encoded);
-    result
-}
-
+/// A message to be sent to the handler accocated with a event loop.
 #[derive(Debug)]
-enum PacketDeseError {
-    InvalidEncoding(DeserializeError),
+pub enum HandlerMessage {
+    /// Shutdown the eventloop next iteration.
+    Shutdown,
+    /// Send a network packet to a remote peer.
+    Send(Token, NetworkPacket),
+    /// Disconnect from a remote peer.
+    Kill(Token),
+    /// Add a socket to be checked each iteration of the event loop.
+    AddSocket(TcpStream, Sender<Token>),
+    /// Add a listener to be checked for new connections each iteration fo the event loop.
+    AddListener(TcpListener),
 }
 
-impl From<DeserializeError> for PacketDeseError {
-    fn from(err: DeserializeError) -> PacketDeseError {
-        PacketDeseError::InvalidEncoding(err)
+/// Sent in the case of an error that should be sent to the peer.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum NetworkError {
+    /// If the versions mismatch sufficently to become incompatible with each other.
+    VersionMismatch(String, String),
+    /// If both peers have should_crash == false, then this error should be sent.
+    ///
+    /// Do note that this error should not be rewrapped into a reerror, since it would cause a loop.
+    /// Instead, it should be logged and ignored, as the connection will be killed shortly after.
+    ShouldCrashBothTrue,
+}
+
+impl Display for NetworkError {
+    fn fmt(&self, fmt: &mut Formatter) -> Result<(), fmt::Error> {
+        match *self {
+            NetworkError::VersionMismatch(ref ver1, ref ver2) => {
+                write!(fmt,
+                       "VersionMismatch: The versions of the client and server attempting to connect mismatch. ver1: {}, ver2: {}",
+                       ver1,
+                       ver2)
+            }
+            NetworkError::ShouldCrashBothTrue => {
+                write!(fmt,
+                       "ShouldCrashBothTrue: Both peers have should_crash == false.")
+            }
+        }
     }
+}
+
+impl Error for NetworkError {
+    fn description(&self) -> &str {
+        match *self {
+            NetworkError::VersionMismatch(_, _) => "VersionMismatch: The versions of the client and server attempting to connect mismatch.",
+            NetworkError::ShouldCrashBothTrue => "ShouldCrashBothTrue: Both peers have should_crash == false.",
+        }
+    }
+
+    fn cause(&self) -> Option<&Error> {
+        match *self {
+            NetworkError::VersionMismatch(_, _) => None,
+            NetworkError::ShouldCrashBothTrue => None,
+        }
+    }
+}
+
+/// Messages that can be sent between peers to facilitate vairous actions.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum NetworkPacket {
+    /// Sent on connection to verify everything is in sync.
+    Init {
+        /// The curent version of the local game.
+        ///
+        /// Should be formatted according to Scematic Versioning.
+        version: String,
+        /// If the local game should crash when an error occours.
+        ///
+        /// Two peers should not have this as false, because should_crash will send the error to the remote peer and make it crash instead.
+        /// This would cause a infinite loop if both were to do it.
+        should_crash: bool,
+    },
+    /// An error that should crash the game and show an error to the user, but only on a client.
+    Error(NetworkError),
+    /// Increments a value internally. It's supposed to be used for unit testing.
+    #[cfg(test)]
+    Test,
+}
+
+fn deserialize_packet(to_de: &[u8]) -> Result<NetworkPacket, DeserializeError> {
+    deserialize::<NetworkPacket>(to_de)
 }
 
 /// Returns the length of a given packet, or a None if the first four bytes do not match NET_MAGIC_NUMBER.
@@ -568,10 +537,6 @@ fn get_packet_length(to_ln: [u8; 6]) -> Option<u16> {
     }
     let length = LittleEndian::read_u16(&next_two);
     Some(length)
-}
-
-fn deserialize_packet(to_de: &[u8]) -> Result<NetworkPacket, PacketDeseError> {
-    Ok(try!(deserialize::<NetworkPacket>(to_de)))
 }
 
 fn handle_packet<T: EventLoop>(to_handle: NetworkPacket, sender: Token, event_loop: &T) {
@@ -594,4 +559,31 @@ fn handle_packet<T: EventLoop>(to_handle: NetworkPacket, sender: Token, event_lo
             ()
         }
     }
+}
+
+/// Parses a str to a SocketAddr.
+///
+/// This is a function because while str implements ToSocketAddrs, it requires a good bit of boilerplate to use.
+pub fn ip(ip_addr: &str) -> SocketAddr {
+    if ip_addr.starts_with("localhost") {
+        panic!("Because localhost can resolve to both 127.0.0.1, and the vairous IPV6 versions of 127.0.0.1, it may not be used. Please instead use 127.0.0.1");
+    }
+    let mut iter = ip_addr.to_socket_addrs().unwrap();
+    let ip = iter.next().unwrap();
+    if iter.next() != None {
+        panic!("The given ip to net::ip() resolved to more than 1 SocketAddr");
+    }
+    ip
+}
+
+fn seralize_packet(to_ser: &NetworkPacket) -> Vec<u8> {
+    let mut result: Vec<u8> = Vec::new();
+    result.write_u32::<LittleEndian>(NET_MAGIC_NUMBER).unwrap();   // No possible errors here.
+    // The NET_MAGIC_NUMBER is used before every packet, so incase the stream is desynced for whatever reason, the game doesn't just read arbratrary data and crash badly.
+    // Instead, it can either recover somehow, by disconnecting and reconnecting, or just erroring gracefully.
+    let mut encoded = serialize(to_ser, SizeLimit::Infinite).unwrap();
+    // Since the size limit is infinite and i'm not encoding to a stream, there is no error and I can safely unwrap();
+    result.write_u16::<LittleEndian>(encoded.len() as u16).unwrap();
+    result.append(&mut encoded);
+    result
 }

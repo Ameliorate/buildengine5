@@ -7,30 +7,30 @@
         warnings)]
 
 //! Implementation of the build engine. This contains entry points and some misc utils for launchers.
+
+#[macro_use] extern crate lazy_static;
+#[macro_use] extern crate log;
+
 extern crate bincode;
 extern crate byteorder;
-extern crate env_logger;
-#[macro_use]
-extern crate log;
-#[macro_use]
-extern crate lazy_static;
-extern crate serde;
-extern crate mio;
 extern crate either;
+extern crate env_logger;
+extern crate mio;
+extern crate serde;
 extern crate slab;
 
 pub mod net;
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::error::Error;
+use std::fmt::{Display, Error as FmtError, Formatter};
 use std::io;
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::fmt::{Display, Error as FmtError, Formatter};
-
-use net::client::Client;
-use net::{EventLoop, EventLoopImpl, MAX_CONNECTIONS, client};
 
 use mio::tcp::TcpListener;
+
+use net::{client, EventLoop, EventLoopImpl, MAX_CONNECTIONS};
+use net::client::Client;
 
 /// The current version of buildengine. Fallows Semantic Versioning.
 pub const VERSION: &'static str = "0.0.1";
@@ -42,14 +42,44 @@ lazy_static! {
      static ref SHOULD_CRASH: AtomicBool = AtomicBool::new(true);    // Basically Erlang's too_big_to_fail process_flag.
 }
 
-/// Initalizes the global parts of the engine.
+/// Main game struct. Contains all state nescary to work.
 ///
-/// Currently it only inits the logger, but later may do other things.
-///
-/// #Panics
-/// * Calling the function once it has already been called.
-pub fn global_init() {
-    env_logger::init().expect("Already inited the logging server!");
+/// While you may never need the fields exposed, they are exposed if you ever want to inspect the game state.
+/// You probably, however don't want to mutate the state directly. That can mess up client-server syncronization.
+#[derive(Debug)]
+pub struct Engine {
+    /// The clientside or serverside state.
+    ///
+    /// Currently a Some if it is a client, or None if server.
+    pub client_or_server: Option<Client>,
+    
+    /// The networking event loop. Mostly used in other functions for sending, adding, and killing connections.
+    ///
+    /// Also contains all state relating to networking.
+    pub event_loop: Box<EventLoop>,
+}
+
+impl Engine {
+    /// Creates a new client game.
+    pub fn new_client(server_address: SocketAddr) -> Result<Self, InitError> {
+        let mut event_loop = try!(EventLoopImpl::new(MAX_CONNECTIONS));
+        let client = try!(Client::spawn_client(server_address, &mut event_loop));
+        Ok(Engine {
+            event_loop: Box::new(event_loop),
+            client_or_server: Some(client),
+        })
+    }
+
+    /// Creates a new server.
+    pub fn new_server(server_address: &SocketAddr) -> Result<Self, InitError> {
+        let event_loop = try!(EventLoopImpl::new(MAX_CONNECTIONS));
+        let listener = try!(TcpListener::bind(server_address));
+        event_loop.add_listener(listener);
+        Ok(Engine {
+            event_loop: Box::new(event_loop),
+            client_or_server: None,
+        })
+    }
 }
 
 /// An error hapened while initing the game.
@@ -98,43 +128,14 @@ impl From<io::Error> for InitError {
     }
 }
 
-/// Main game struct. Contains all state nescary to work.
+/// Initalizes the global parts of the engine.
 ///
-/// While you may never need the fields exposed, they are exposed if you ever want to inspect the game state.
-/// You probably, however don't want to mutate the state directly. That can mess up client-server syncronization.
-#[derive(Debug)]
-pub struct Engine {
-    /// The networking event loop. Mostly used in other functions for sending, adding, and killing connections.
-    ///
-    /// Also contains all state relating to networking.
-    pub event_loop: Box<EventLoop>,
-    /// The clientside or serverside state.
-    ///
-    /// Currently a Some if it is a client, or None if server.
-    pub client_or_server: Option<Client>,
-}
-
-impl Engine {
-    /// Creates a new client game.
-    pub fn new_client(server_address: SocketAddr) -> Result<Self, InitError> {
-        let mut event_loop = try!(EventLoopImpl::new(MAX_CONNECTIONS));
-        let client = try!(Client::spawn_client(server_address, &mut event_loop));
-        Ok(Engine {
-            event_loop: Box::new(event_loop),
-            client_or_server: Some(client),
-        })
-    }
-
-    /// Creates a new server.
-    pub fn new_server(server_address: &SocketAddr) -> Result<Self, InitError> {
-        let event_loop = try!(EventLoopImpl::new(MAX_CONNECTIONS));
-        let listener = try!(TcpListener::bind(server_address));
-        event_loop.add_listener(listener);
-        Ok(Engine {
-            event_loop: Box::new(event_loop),
-            client_or_server: None,
-        })
-    }
+/// Currently it only inits the logger, but later may do other things.
+///
+/// #Panics
+/// * Calling the function once it has already been called.
+pub fn global_init() {
+    env_logger::init().expect("Already inited the logging server!");
 }
 
 /// Prints "Hello World!" to stdout. Will be removed in future versions.
