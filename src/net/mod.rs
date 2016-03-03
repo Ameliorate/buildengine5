@@ -564,6 +564,10 @@ fn handle_packet<T: EventLoop>(to_handle: NetworkPacket, sender: Token, event_lo
 /// Parses a str to a SocketAddr.
 ///
 /// This is a function because while str implements ToSocketAddrs, it requires a good bit of boilerplate to use.
+///
+/// #Panics
+/// * Calling with a localhost ip address: Use 127.0.0.1 instead.
+/// * Calling with an ip address that resolves to more than 1 ip address.
 pub fn ip(ip_addr: &str) -> SocketAddr {
     if ip_addr.starts_with("localhost") {
         panic!("Because localhost can resolve to both 127.0.0.1, and the vairous IPV6 versions of 127.0.0.1, it may not be used. Please instead use 127.0.0.1");
