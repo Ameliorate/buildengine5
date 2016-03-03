@@ -1,4 +1,4 @@
-#![feature(custom_derive, plugin, stmt_expr_attributes, log_syntax)]
+#![feature(custom_derive, plugin)]
 #![plugin(serde_macros)]
 #![deny(missing_docs,
         missing_debug_implementations, missing_copy_implementations,
