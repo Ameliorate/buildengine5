@@ -524,6 +524,25 @@ pub enum NetworkPacket {
     Test,
 }
 
+/// Parses a str to a SocketAddr.
+///
+/// This is a function because while str implements ToSocketAddrs, it requires a good bit of boilerplate to use.
+///
+/// #Panics
+/// * Calling with a localhost ip address: Use 127.0.0.1 instead.
+/// * Calling with an ip address that resolves to more than 1 ip address.
+pub fn ip(ip_addr: &str) -> SocketAddr {
+    if ip_addr.starts_with("localhost") {
+        panic!("Because localhost can resolve to both 127.0.0.1, and the vairous IPV6 versions of 127.0.0.1, it may not be used. Please instead use 127.0.0.1");
+    }
+    let mut iter = ip_addr.to_socket_addrs().unwrap();
+    let ip = iter.next().unwrap();
+    if iter.next() != None {
+        panic!("The given ip to net::ip() resolved to more than 1 SocketAddr");
+    }
+    ip
+}
+
 fn deserialize_packet(to_de: &[u8]) -> Result<NetworkPacket, DeserializeError> {
     deserialize::<NetworkPacket>(to_de)
 }
@@ -559,25 +578,6 @@ fn handle_packet<T: EventLoop>(to_handle: NetworkPacket, sender: Token, event_lo
             ()
         }
     }
-}
-
-/// Parses a str to a SocketAddr.
-///
-/// This is a function because while str implements ToSocketAddrs, it requires a good bit of boilerplate to use.
-///
-/// #Panics
-/// * Calling with a localhost ip address: Use 127.0.0.1 instead.
-/// * Calling with an ip address that resolves to more than 1 ip address.
-pub fn ip(ip_addr: &str) -> SocketAddr {
-    if ip_addr.starts_with("localhost") {
-        panic!("Because localhost can resolve to both 127.0.0.1, and the vairous IPV6 versions of 127.0.0.1, it may not be used. Please instead use 127.0.0.1");
-    }
-    let mut iter = ip_addr.to_socket_addrs().unwrap();
-    let ip = iter.next().unwrap();
-    if iter.next() != None {
-        panic!("The given ip to net::ip() resolved to more than 1 SocketAddr");
-    }
-    ip
 }
 
 fn seralize_packet(to_ser: &NetworkPacket) -> Vec<u8> {
