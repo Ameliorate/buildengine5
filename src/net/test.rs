@@ -176,3 +176,19 @@ fn event_loop_impl_send() {
             old_test_val,
             new_test_val);
 }
+
+#[test]
+fn client_server_connect() {
+    let (mut event_loop_ref_client, thread_client) = event_loop_helper();
+    let (event_loop_ref_server, thread_server) = event_loop_helper();
+    let listener = TcpListener::bind(&super::ip("127.0.0.1:25570")).unwrap();
+    event_loop_ref_server.add_listener(listener);
+    let client = super::client::Client::spawn_client(super::ip("127.0.0.1:25570"),
+                                                     &mut event_loop_ref_client)
+                     .unwrap();
+    client.shutdown(&mut event_loop_ref_client);
+    event_loop_ref_client.shutdown();
+    event_loop_ref_server.shutdown();
+    let _event_loop_client = thread_client.join().unwrap();
+    let _event_loop_server = thread_server.join().unwrap();
+}
