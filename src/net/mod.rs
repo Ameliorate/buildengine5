@@ -457,7 +457,7 @@ impl MioHandler for Handler {
             // I do this because Read.take takes a self, instead of a reasonable alternitive.
             // However &mut Read is it's self a Reader. So I use that instead.
             let dese = deserialize_packet(&packet).unwrap();
-            handle_packet(dese, token, &mut EventLoopImplMutRef::new(event_loop, self));
+            handle_packet(dese, token, &EventLoopImplMutRef::new(event_loop, self));
         }
 
         if events.is_writable() {
@@ -574,7 +574,7 @@ fn deserialize_packet(to_de: &[u8]) -> Result<NetworkPacket, PacketDeseError> {
     Ok(try!(deserialize::<NetworkPacket>(to_de)))
 }
 
-fn handle_packet(to_handle: NetworkPacket, sender: Token, event_loop: &mut EventLoop) {
+fn handle_packet<T: EventLoop>(to_handle: NetworkPacket, sender: Token, event_loop: &T) {
     match to_handle {
         NetworkPacket::Init{version, should_crash} => {
             if !should_crash && !::check_should_crash() {
