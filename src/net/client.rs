@@ -58,7 +58,7 @@ pub struct Client {
 impl Client {
     /// Creates a client and connects to the remote server.
     pub fn spawn_client(server_address: SocketAddr,
-                        event_loop: &mut EventLoop)
+                        event_loop: &EventLoop)
                         -> Result<Client, InitError> {
         let socket = try!(TcpStream::connect(&server_address));
         let token = event_loop.add_socket(socket);
@@ -71,7 +71,12 @@ impl Client {
     }
 
     /// Shutdown the connection to the server accocated with this client.
-    pub fn shutdown(self, event_loop: &mut EventLoop) {
+    pub fn shutdown(self, event_loop: &EventLoop) {
         event_loop.kill(self.token);
+    }
+
+    /// Send a message to the server accocated with the client.
+    pub fn send(&self, event_loop: &EventLoop, packet: NetworkPacket) {
+        event_loop.send(self.token, packet);
     }
 }

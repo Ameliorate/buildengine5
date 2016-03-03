@@ -184,11 +184,35 @@ fn client_server_connect() {
     let listener = TcpListener::bind(&super::ip("127.0.0.1:25570")).unwrap();
     event_loop_ref_server.add_listener(listener);
     let client = super::client::Client::spawn_client(super::ip("127.0.0.1:25570"),
-                                                     &mut event_loop_ref_client)
+                                                     &event_loop_ref_client)
                      .unwrap();
     client.shutdown(&mut event_loop_ref_client);
     event_loop_ref_client.shutdown();
     event_loop_ref_server.shutdown();
     let _event_loop_client = thread_client.join().unwrap();
     let _event_loop_server = thread_server.join().unwrap();
+}
+
+#[test]
+fn client_server_send() {
+    let (mut event_loop_ref_client, thread_client) = event_loop_helper();
+    let (event_loop_ref_server, thread_server) = event_loop_helper();
+    let listener = TcpListener::bind(&super::ip("127.0.0.1:25571")).unwrap();
+    event_loop_ref_server.add_listener(listener);
+    let client = super::client::Client::spawn_client(super::ip("127.0.0.1:25571"),
+                                                     &event_loop_ref_client)
+                     .unwrap();
+    let old_test_val = TEST_VAL.load(Ordering::Relaxed);
+    client.send(&event_loop_ref_client, super::NetworkPacket::Test);
+    thread::sleep(Duration::from_millis(WAIT_TIME_MS));
+    client.shutdown(&mut event_loop_ref_client);
+    event_loop_ref_client.shutdown();
+    event_loop_ref_server.shutdown();
+    let _event_loop_client = thread_client.join().unwrap();
+    let _event_loop_server = thread_server.join().unwrap();
+    let new_test_val = TEST_VAL.load(Ordering::Relaxed);
+    assert!(old_test_val < new_test_val,
+            "old_test_val < new_test_val, old_test_val: {}, new_test_val: {}",
+            old_test_val,
+            new_test_val);
 }
