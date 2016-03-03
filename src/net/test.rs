@@ -3,7 +3,6 @@ use std::thread::JoinHandle;
 use std::sync::mpsc::{TryRecvError, channel};
 use std::time::Duration;
 use std::io;
-use std::net::{SocketAddr, SocketAddrV4, Ipv4Addr};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use byteorder::{ByteOrder, LittleEndian};
@@ -12,7 +11,7 @@ use mio::tcp::{TcpListener, TcpStream};
 use net::EventLoop;
 
 /// The amount of time to wait while unit testing to make sure threads are syncronized when there is no other method.
-const WAIT_TIME_MS: usize = 250;
+const WAIT_TIME_MS: u64 = 250;
 
 lazy_static! {
     /// Used for unit testing sends.
@@ -90,12 +89,7 @@ fn event_loop_helper() -> (super::EventLoopImplRef, JoinHandle<super::EventLoopI
 #[test]
 fn event_loop_impl_add_listener() {
     let (event_loop_ref, thread) = event_loop_helper();
-    let listener = TcpListener::bind(&SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127,
-                                                                                     0,
-                                                                                     0,
-                                                                                     1),
-                                                                       0)))
-                       .unwrap();
+    let listener = TcpListener::bind(&super::ip("127.0.0.1:0")).unwrap();
     event_loop_ref.add_listener(listener);
     event_loop_ref.shutdown();
     let event_loop = thread.join().unwrap();
@@ -105,17 +99,8 @@ fn event_loop_impl_add_listener() {
 #[test]
 fn event_loop_impl_add_socket() {
     let (event_loop_ref, thread) = event_loop_helper();
-    let listener = TcpListener::bind(&SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127,
-                                                                                     0,
-                                                                                     0,
-                                                                                     1),
-                                                                       25567)))
-                       .unwrap();
-    let _stream_local = TcpStream::connect(&SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127,
-                                                                                           0,
-                                                                                           0,
-                                                                                           1),
-                                                                             25567)));
+    let listener = TcpListener::bind(&super::ip("127.0.0.1:25567")).unwrap();
+    let _stream_local = TcpStream::connect(&super::ip("127.0.0.1:25567")).unwrap();
     let stream_remote;
     loop {
         match listener.accept().unwrap() {
@@ -135,18 +120,8 @@ fn event_loop_impl_add_socket() {
 #[test]
 fn event_loop_impl_kill() {
     let (event_loop_ref, thread) = event_loop_helper();
-    let listener = TcpListener::bind(&SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127,
-                                                                                     0,
-                                                                                     0,
-                                                                                     1),
-                                                                       25569)))
-                       .unwrap();
-    let stream_local = TcpStream::connect(&SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127,
-                                                                                          0,
-                                                                                          0,
-                                                                                          1),
-                                                                            25569)))
-                           .unwrap();
+    let listener = TcpListener::bind(&super::ip("127.0.0.1:25568")).unwrap();
+    let stream_local = TcpStream::connect(&super::ip("127.0.0.1:25568")).unwrap();
     let _stream_remote;
     loop {
         match listener.accept().unwrap() {
@@ -171,18 +146,8 @@ fn event_loop_impl_kill() {
 fn event_loop_impl_send() {
     let (event_loop_ref_local, thread_local) = event_loop_helper();
     let (event_loop_ref_remote, thread_remote) = event_loop_helper();
-    let listener = TcpListener::bind(&SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127,
-                                                                                     0,
-                                                                                     0,
-                                                                                     1),
-                                                                       25568)))
-                       .unwrap();
-    let stream_local = TcpStream::connect(&SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127,
-                                                                                          0,
-                                                                                          0,
-                                                                                          1),
-                                                                            25568)))
-                           .unwrap();
+    let listener = TcpListener::bind(&super::ip("127.0.0.1:25569")).unwrap();
+    let stream_local = TcpStream::connect(&super::ip("127.0.0.1:25569")).unwrap();
     let stream_remote;
     loop {
         match listener.accept().unwrap() {

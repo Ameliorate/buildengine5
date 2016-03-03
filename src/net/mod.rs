@@ -5,6 +5,7 @@
 use std::convert::From;
 use std::io;
 use std::io::{Read, Write};
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
 use std::error::Error;
@@ -41,6 +42,21 @@ pub const STANDARD_PORT: u16 = 25566;
 ///
 /// If the number of connections exceeds this number, new connections should be denied.
 pub const MAX_CONNECTIONS: usize = 1024;
+
+/// Parses a str to a SocketAddr.
+///
+/// This is a function because while str implements ToSocketAddrs, it requires a good bit of boilerplate to use.
+pub fn ip(ip_addr: &str) -> SocketAddr {
+    if ip_addr.starts_with("localhost") {
+        panic!("Because localhost can resolve to both 127.0.0.1, and the vairous IPV6 versions of 127.0.0.1, it may not be used. Please instead use 127.0.0.1");
+    }
+    let mut iter = ip_addr.to_socket_addrs().unwrap();
+    let ip = iter.next().unwrap();
+    if iter.next() != None {
+        panic!("The given ip to net::ip() resolved to more than 1 SocketAddr");
+    }
+    ip
+}
 
 /// Messages that can be sent between peers to facilitate vairous actions.
 #[derive(Clone, Debug, Serialize, Deserialize)]
