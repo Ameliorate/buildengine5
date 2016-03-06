@@ -13,11 +13,8 @@ use net::EventLoop;
 /// The amount of time to wait while unit testing to make sure threads are syncronized when there is no other method.
 const WAIT_TIME_MS: u64 = 250;
 
-lazy_static! {
-    /// Used for unit testing sends.
-    #[derive(Debug)]
-    pub static ref TEST_VAL: AtomicUsize = AtomicUsize::new(0);
-}
+INSERT TEST_GLABAL HERE!!!
+^ Not commented to break compiling.
 
 #[test]
 fn client_server_connect() {
@@ -25,9 +22,7 @@ fn client_server_connect() {
     let (event_loop_ref_server, thread_server) = event_loop_helper();
     let listener = TcpListener::bind(&super::ip("127.0.0.1:25570")).unwrap();
     event_loop_ref_server.add_listener(listener);
-    let client = super::client::Client::spawn_client(super::ip("127.0.0.1:25570"),
-                                                     &event_loop_ref_client)
-                     .unwrap();
+    let client = super::client::Client::spawn_client(super::ip("127.0.0.1:25570"), &event_loop_ref_client).unwrap();
     client.shutdown(&mut event_loop_ref_client);
     event_loop_ref_client.shutdown();
     event_loop_ref_server.shutdown();
@@ -41,9 +36,7 @@ fn client_server_send() {
     let (event_loop_ref_server, thread_server) = event_loop_helper();
     let listener = TcpListener::bind(&super::ip("127.0.0.1:25571")).unwrap();
     event_loop_ref_server.add_listener(listener);
-    let client = super::client::Client::spawn_client(super::ip("127.0.0.1:25571"),
-                                                     &event_loop_ref_client)
-                     .unwrap();
+    let client = super::client::Client::spawn_client(super::ip("127.0.0.1:25571"), &event_loop_ref_client).unwrap();
     let old_test_val = TEST_VAL.load(Ordering::Relaxed);
     client.send(&event_loop_ref_client, super::NetworkPacket::Test);
     thread::sleep(Duration::from_millis(WAIT_TIME_MS));
@@ -202,13 +195,7 @@ fn get_packet_length_correct() {
     LittleEndian::write_u32(&mut m_number, super::NET_MAGIC_NUMBER);
     let mut intended_length: [u8; 2] = [0; 2];
     LittleEndian::write_u16(&mut intended_length, 10);
-    let length = super::get_packet_length([m_number[0],
-                                           m_number[1],
-                                           m_number[2],
-                                           m_number[3],
-                                           intended_length[0],
-                                           intended_length[1]])
-                     .expect("get_packet_length wrongly checks NET_MAGIC_NUMBER");
+    let length = super::get_packet_length([m_number[0], m_number[1], m_number[2], m_number[3], intended_length[0], intended_length[1]]).expect("get_packet_length wrongly checks NET_MAGIC_NUMBER");
     assert_eq!(length, 10);
 }
 

@@ -1,4 +1,4 @@
-#![feature(custom_derive, plugin)]
+#![feature(custom_derive, plugin, const_fn)]
 #![plugin(serde_macros)]
 #![deny(missing_docs,
         missing_debug_implementations, missing_copy_implementations,
@@ -38,9 +38,7 @@ pub const VERSION: &'static str = "0.0.1";
 /// If the game is allowed to crash in the event of a semi-handleable error, such as a bad network packet or a peer crashing.
 ///
 /// Programming mistakes however, will still panic.
-lazy_static! {
-     static ref SHOULD_CRASH: AtomicBool = AtomicBool::new(true);    // Basically Erlang's too_big_to_fail process_flag.
-}
+static SHOULD_CRASH: AtomicBool = AtomicBool::new(true);    // Basically Erlang's too_big_to_fail process_flag.
 
 /// Main game struct. Contains all state nescary to work.
 ///
@@ -52,7 +50,7 @@ pub struct Engine {
     ///
     /// Currently a Some if it is a client, or None if server.
     pub client_or_server: Option<Client>,
-    
+
     /// The networking event loop. Mostly used in other functions for sending, adding, and killing connections.
     ///
     /// Also contains all state relating to networking.
