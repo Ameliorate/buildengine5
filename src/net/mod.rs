@@ -544,7 +544,7 @@ pub fn ip(ip_addr: &str) -> SocketAddr {
 }
 
 fn deserialize_packet(to_de: &[u8]) -> Result<NetworkPacket, DeserializeError> {
-    deserialize::<NetworkPacket>(to_de)
+    deserialize(to_de)
 }
 
 /// Returns the length of a given packet, or a None if the first four bytes do not match NET_MAGIC_NUMBER.
@@ -575,7 +575,6 @@ fn handle_packet<T: EventLoop>(to_handle: NetworkPacket, sender: Token, event_lo
         #[cfg(test)]
         NetworkPacket::Test => {
             test::TEST_VAL.fetch_add(1, Ordering::Relaxed);
-            ()
         }
     }
 }
