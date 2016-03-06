@@ -13,8 +13,15 @@ use net::EventLoop;
 /// The amount of time to wait while unit testing to make sure threads are syncronized when there is no other method.
 const WAIT_TIME_MS: u64 = 250;
 
-INSERT TEST_GLABAL HERE!!!
-^ Not commented to break compiling.
+pub static CLIENT_SERVER_SEND_TEST_VAL: AtomicUsize = AtomicUsize::new(0);
+
+pub static EVENT_LOOP_SEND_TEST_VAL: AtomicUsize = AtomicUsize::new(0);
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub enum TestValToModify {
+    ClientServerSend,
+    EventLoopImplSend,
+}
 
 #[test]
 fn client_server_connect() {
@@ -37,15 +44,18 @@ fn client_server_send() {
     let listener = TcpListener::bind(&super::ip("127.0.0.1:25571")).unwrap();
     event_loop_ref_server.add_listener(listener);
     let client = super::client::Client::spawn_client(super::ip("127.0.0.1:25571"), &event_loop_ref_client).unwrap();
-    let old_test_val = TEST_VAL.load(Ordering::Relaxed);
-    client.send(&event_loop_ref_client, super::NetworkPacket::Test);
+    let old_test_val = CLIENT_SERVER_SEND_TEST_VAL.load(Ordering::Relaxed);
+
+    client.send(&event_loop_ref_client,
+                super::NetworkPacket::Test(TestValToModify::ClientServerSend));
     thread::sleep(Duration::from_millis(WAIT_TIME_MS));
+
     client.shutdown(&mut event_loop_ref_client);
     event_loop_ref_client.shutdown();
     event_loop_ref_server.shutdown();
     let _event_loop_client = thread_client.join().unwrap();
     let _event_loop_server = thread_server.join().unwrap();
-    let new_test_val = TEST_VAL.load(Ordering::Relaxed);
+    let new_test_val = CLIENT_SERVER_SEND_TEST_VAL.load(Ordering::Relaxed);
     assert!(old_test_val < new_test_val,
             "old_test_val < new_test_val, old_test_val: {}, new_test_val: {}",
             old_test_val,
@@ -142,16 +152,16 @@ fn event_loop_impl_send() {
     let _token_remote = event_loop_ref_local.add_socket(stream_local);
     let token_local = event_loop_ref_remote.add_socket(stream_remote);
 
-    let old_test_val = TEST_VAL.load(Ordering::Relaxed);
-    event_loop_ref_remote.send(token_local, super::NetworkPacket::Test);
+    let old_test_val = EVENT_LOOP_SEND_TEST_VAL.load(Ordering::Relaxed);
+    event_loop_ref_remote.send(token_local,
+                               super::NetworkPacket::Test(TestValToModify::EventLoopImplSend));
     thread::sleep(Duration::from_millis(WAIT_TIME_MS));
-    let new_test_val = TEST_VAL.load(Ordering::Relaxed);
 
     event_loop_ref_local.shutdown();
     event_loop_ref_remote.shutdown();
     let _event_loop_local = thread_local.join().unwrap();
     let _event_loop_remote = thread_remote.join().unwrap();
-
+    let new_test_val = EVENT_LOOP_SEND_TEST_VAL.load(Ordering::Relaxed);
     assert!(old_test_val < new_test_val,
             "old_test_val < new_test_val, old_test_val: {}, new_test_val: {}",
             old_test_val,

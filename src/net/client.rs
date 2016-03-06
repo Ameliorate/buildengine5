@@ -22,9 +22,7 @@ pub struct Client {
 
 impl Client {
     /// Creates a client and connects to the remote server.
-    pub fn spawn_client<T: EventLoop>(server_address: SocketAddr,
-                                      event_loop: &T)
-                                      -> Result<Client, InitError> {
+    pub fn spawn_client<T: EventLoop>(server_address: SocketAddr, event_loop: &T) -> Result<Client, InitError> {
         let socket = try!(TcpStream::connect(&server_address));
         let token = event_loop.add_socket(socket);
         event_loop.send(token,

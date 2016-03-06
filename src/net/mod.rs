@@ -521,7 +521,7 @@ pub enum NetworkPacket {
     Error(NetworkError),
     /// Increments a value internally. It's supposed to be used for unit testing.
     #[cfg(test)]
-    Test,
+    Test(test::TestValToModify),
 }
 
 /// Parses a str to a SocketAddr.
@@ -573,8 +573,15 @@ fn handle_packet<T: EventLoop>(to_handle: NetworkPacket, sender: Token, event_lo
         }
         NetworkPacket::Error(error) => if ::check_should_crash() { panic!(error) } else { unimplemented!() },
         #[cfg(test)]
-        NetworkPacket::Test => {
-            test::TEST_VAL.fetch_add(1, Ordering::Relaxed);
+        NetworkPacket::Test(to_mod) => {
+            match to_mod {
+                test::TestValToModify::ClientServerSend => {
+                    test::CLIENT_SERVER_SEND_TEST_VAL.fetch_add(1, Ordering::Relaxed);
+                }
+                test::TestValToModify::EventLoopImplSend => {
+                    test::EVENT_LOOP_SEND_TEST_VAL.fetch_add(1, Ordering::Relaxed);
+                }
+            }
         }
     }
 }

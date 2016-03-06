@@ -8,8 +8,10 @@
 
 //! Implementation of the build engine. This contains entry points and some misc utils for launchers.
 
-#[macro_use] extern crate lazy_static;
-#[macro_use] extern crate log;
+#[macro_use]
+extern crate lazy_static;
+#[macro_use]
+extern crate log;
 
 extern crate bincode;
 extern crate byteorder;
@@ -29,7 +31,7 @@ use std::net::SocketAddr;
 
 use mio::tcp::TcpListener;
 
-use net::{client, EventLoop, EventLoopImpl, MAX_CONNECTIONS};
+use net::{EventLoop, EventLoopImpl, MAX_CONNECTIONS, client};
 use net::client::Client;
 
 /// The current version of buildengine. Fallows Semantic Versioning.
