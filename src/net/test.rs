@@ -23,6 +23,7 @@ pub enum TestValToModify {
     EventLoopImplSend,
 }
 
+/// Tests a client connecting to a server, going through the event loop.
 #[test]
 fn client_server_connect() {
     let (mut event_loop_ref_client, thread_client) = event_loop_helper();
@@ -37,6 +38,7 @@ fn client_server_connect() {
     let _event_loop_server = thread_server.join().unwrap();
 }
 
+/// Tests the event loop sending and receving, using the client infrastructure.
 #[test]
 fn client_server_send() {
     let (mut event_loop_ref_client, thread_client) = event_loop_helper();
@@ -62,6 +64,7 @@ fn client_server_send() {
             new_test_val);
 }
 
+/// Adds a listener to EventLoopImpl.
 #[test]
 fn event_loop_impl_add_listener() {
     let (event_loop_ref, thread) = event_loop_helper();
@@ -72,6 +75,9 @@ fn event_loop_impl_add_listener() {
     assert_eq!(event_loop.handler.listeners.len(), 1);
 }
 
+/// Shuts down a EventLoopImpl.
+///
+/// If this test fails, all other tests will hang, due to the fact that all other tests block on shutting down the event loop.
 #[test]
 fn event_loop_impl_add_socket() {
     let (event_loop_ref, thread) = event_loop_helper();
@@ -93,6 +99,7 @@ fn event_loop_impl_add_socket() {
     assert_eq!(event_loop.handler.connections.count(), 1);
 }
 
+/// Constructs an event loop on a new thread.
 fn event_loop_helper() -> (super::EventLoopImplRef, JoinHandle<super::EventLoopImpl>) {
     let mut event_loop = super::EventLoopImpl::new(super::MAX_CONNECTIONS).unwrap();
     let event_loop_ref: super::EventLoopImplRef = (&mut event_loop).into();
@@ -103,6 +110,7 @@ fn event_loop_helper() -> (super::EventLoopImplRef, JoinHandle<super::EventLoopI
     }))
 }
 
+/// Kills a connection on an EventLoopImpl.
 #[test]
 fn event_loop_impl_kill() {
     let (event_loop_ref, thread) = event_loop_helper();
@@ -128,11 +136,13 @@ fn event_loop_impl_kill() {
     // The closest I can get is reading 0 bytes, but even that is ambiguous.
 }
 
+/// Constructs an EventLoopImpl.
 #[test]
 fn event_loop_impl_new() {
     super::EventLoopImpl::new(super::MAX_CONNECTIONS).unwrap();
 }
 
+/// Sends a packet using the event loop, but without the client helper struct.
 #[test]
 fn event_loop_impl_send() {
     let (event_loop_ref_local, thread_local) = event_loop_helper();
@@ -168,6 +178,7 @@ fn event_loop_impl_send() {
             new_test_val);
 }
 
+/// Shuts down an EventLoopImpl.
 #[test]
 fn event_loop_impl_shutdown() {
     let (tx, rx) = channel::<Result<(), io::Error>>();
@@ -193,12 +204,14 @@ fn event_loop_impl_shutdown() {
     thread.join().unwrap();
 }
 
+/// Tests get_packet_length with a bad magic number.
 #[test]
 fn get_packet_length_bad_magic_number() {
     let length: Option<u16> = super::get_packet_length([0xFE, 0xF0, 0xF6, 0xFD, 0, 10]);
     assert_eq!(length, None);
 }
 
+/// Tests get_packet_length with a correct magic number, and ensures the length is the same.
 #[test]
 fn get_packet_length_correct() {
     let mut m_number: [u8; 4] = [0; 4];
@@ -209,6 +222,7 @@ fn get_packet_length_correct() {
     assert_eq!(length, 10);
 }
 
+/// Constructs a Handler.
 #[test]
 fn handler_new() {
     super::Handler::new(super::MAX_CONNECTIONS);
