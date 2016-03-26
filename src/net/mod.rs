@@ -119,7 +119,9 @@ impl EventLoop for EventLoopImpl {
 
     fn shutdown(&self) {
         match self.mio_event_loop.channel().send(HandlerMessage::Shutdown) {
-            Err(NotifyError::Io(err)) => panic!("Io Error while calling shutdown() on event loop: {}", err),
+            Err(NotifyError::Io(err)) => {
+                panic!("Io Error while calling shutdown() on event loop: {}", err)
+            }
             Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling shutdown()! Is it running?"),
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling shutdown()"),
             Ok(val) => val,
@@ -128,7 +130,9 @@ impl EventLoop for EventLoopImpl {
 
     fn send(&self, target: Token, packet: NetworkPacket) {
         match self.mio_event_loop.channel().send(HandlerMessage::Send(target, packet)) {
-            Err(NotifyError::Io(err)) => panic!("Io Error while calling send() on event loop: {}", err),
+            Err(NotifyError::Io(err)) => {
+                panic!("Io Error while calling send() on event loop: {}", err)
+            }
             Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling send()! Is it running?"),
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling send()"),
             Ok(val) => val,
@@ -137,7 +141,9 @@ impl EventLoop for EventLoopImpl {
 
     fn kill(&self, target: Token) {
         match self.mio_event_loop.channel().send(HandlerMessage::Kill(target)) {
-            Err(NotifyError::Io(err)) => panic!("Io Error while calling kill() on event loop: {}", err),
+            Err(NotifyError::Io(err)) => {
+                panic!("Io Error while calling kill() on event loop: {}", err)
+            }
             Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling kill()! Is it running?"),
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling kill()"),
             Ok(val) => val,
@@ -147,7 +153,9 @@ impl EventLoop for EventLoopImpl {
     fn add_socket(&self, socket: TcpStream) -> Token {
         let (tx, rx) = channel();
         match self.mio_event_loop.channel().send(HandlerMessage::AddSocket(socket, tx)) {
-            Err(NotifyError::Io(err)) => panic!("Io Error while calling add_socket() on event loop: {}", err),
+            Err(NotifyError::Io(err)) => {
+                panic!("Io Error while calling add_socket() on event loop: {}", err)
+            }
             Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling add_socket()! Is it running?"),
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling add_socket()"),
             Ok(val) => val,
@@ -193,7 +201,9 @@ impl EventLoop for EventLoopImplRef {
 
     fn shutdown(&self) {
         match self.channel.send(HandlerMessage::Shutdown) {
-            Err(NotifyError::Io(err)) => panic!("Io Error while calling shutdown() on event loop: {}", err),
+            Err(NotifyError::Io(err)) => {
+                panic!("Io Error while calling shutdown() on event loop: {}", err)
+            }
             Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling shutdown()! Is it running?"),
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling shutdown()"),
             Ok(val) => val,
@@ -202,7 +212,9 @@ impl EventLoop for EventLoopImplRef {
 
     fn send(&self, target: Token, packet: NetworkPacket) {
         match self.channel.send(HandlerMessage::Send(target, packet)) {
-            Err(NotifyError::Io(err)) => panic!("Io Error while calling send() on event loop: {}", err),
+            Err(NotifyError::Io(err)) => {
+                panic!("Io Error while calling send() on event loop: {}", err)
+            }
             Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling send()! Is it running?"),
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling send()"),
             Ok(val) => val,
@@ -211,7 +223,9 @@ impl EventLoop for EventLoopImplRef {
 
     fn kill(&self, target: Token) {
         match self.channel.send(HandlerMessage::Kill(target)) {
-            Err(NotifyError::Io(err)) => panic!("Io Error while calling kill() on event loop: {}", err),
+            Err(NotifyError::Io(err)) => {
+                panic!("Io Error while calling kill() on event loop: {}", err)
+            }
             Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling kill()! Is it running?"),
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling kill()"),
             Ok(val) => val,
@@ -221,7 +235,9 @@ impl EventLoop for EventLoopImplRef {
     fn add_socket(&self, socket: TcpStream) -> Token {
         let (tx, rx) = channel();
         match self.channel.send(HandlerMessage::AddSocket(socket, tx)) {
-            Err(NotifyError::Io(err)) => panic!("Io Error while calling add_socket() on event loop: {}", err),
+            Err(NotifyError::Io(err)) => {
+                panic!("Io Error while calling add_socket() on event loop: {}", err)
+            }
             Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling add_socket()! Is it running?"),
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling add_socket()"),
             Ok(val) => val,
@@ -251,7 +267,9 @@ pub struct EventLoopImplMutRef<'a, 'b> {
 
 impl<'a, 'b> EventLoopImplMutRef<'a, 'b> {
     /// Helper function for creation of a EventLoopImplMutRef.
-    pub fn new(mio_event_loop: &'a mut MioEventLoop<Handler>, handler: &'b mut Handler) -> EventLoopImplMutRef<'a, 'b> {
+    pub fn new(mio_event_loop: &'a mut MioEventLoop<Handler>,
+               handler: &'b mut Handler)
+               -> EventLoopImplMutRef<'a, 'b> {
         EventLoopImplMutRef {
             mio_event_loop: mio_event_loop,
             handler: handler,
@@ -270,7 +288,9 @@ impl<'a, 'b> EventLoop for EventLoopImplMutRef<'a, 'b> {
 
     fn shutdown(&self) {
         match self.mio_event_loop.channel().send(HandlerMessage::Shutdown) {
-            Err(NotifyError::Io(err)) => panic!("Io Error while calling shutdown() on event loop: {}", err),
+            Err(NotifyError::Io(err)) => {
+                panic!("Io Error while calling shutdown() on event loop: {}", err)
+            }
             Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling shutdown()! Is it running?"),
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling shutdown()"),
             Ok(val) => val,
@@ -279,7 +299,9 @@ impl<'a, 'b> EventLoop for EventLoopImplMutRef<'a, 'b> {
 
     fn send(&self, target: Token, packet: NetworkPacket) {
         match self.mio_event_loop.channel().send(HandlerMessage::Send(target, packet)) {
-            Err(NotifyError::Io(err)) => panic!("Io Error while calling send() on event loop: {}", err),
+            Err(NotifyError::Io(err)) => {
+                panic!("Io Error while calling send() on event loop: {}", err)
+            }
             Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling send()! Is it running?"),
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling send()"),
             Ok(val) => val,
@@ -288,7 +310,9 @@ impl<'a, 'b> EventLoop for EventLoopImplMutRef<'a, 'b> {
 
     fn kill(&self, target: Token) {
         match self.mio_event_loop.channel().send(HandlerMessage::Kill(target)) {
-            Err(NotifyError::Io(err)) => panic!("Io Error while calling kill() on event loop: {}", err),
+            Err(NotifyError::Io(err)) => {
+                panic!("Io Error while calling kill() on event loop: {}", err)
+            }
             Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling kill()! Is it running?"),
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling kill()"),
             Ok(val) => val,
@@ -298,7 +322,9 @@ impl<'a, 'b> EventLoop for EventLoopImplMutRef<'a, 'b> {
     fn add_socket(&self, socket: TcpStream) -> Token {
         let (tx, rx) = channel();
         match self.mio_event_loop.channel().send(HandlerMessage::AddSocket(socket, tx)) {
-            Err(NotifyError::Io(err)) => panic!("Io Error while calling add_socket() on event loop: {}", err),
+            Err(NotifyError::Io(err)) => {
+                panic!("Io Error while calling add_socket() on event loop: {}", err)
+            }
             Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling add_socket()! Is it running?"),
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling add_socket()"),
             Ok(val) => val,
@@ -359,7 +385,10 @@ impl MioHandler for Handler {
                 // After all, the token is now invalid and will panic or something if left around.
             }
             let mut packet = Vec::new();
-            (&mut self.connections[token].stream).take(length as u64).read_to_end(&mut packet).unwrap();
+            (&mut self.connections[token].stream)
+                .take(length as u64)
+                .read_to_end(&mut packet)
+                .unwrap();
             // I do this because Read.take takes a self, instead of a reasonable alternitive.
             // However &mut Read is it's self a Reader. So I use that instead.
             let dese = deserialize_packet(&packet).unwrap();
@@ -412,7 +441,8 @@ impl MioHandler for Handler {
             EventLoopImplMutRef::new(event_loop, self).send(token,
                                                             NetworkPacket::Init {
                                                                 version: VERSION.to_owned(),
-                                                                should_crash: ::check_should_crash(),
+                                                                should_crash:
+                                                                    ::check_should_crash(),
                                                             });
         }
     }
@@ -423,8 +453,12 @@ impl MioHandler for Handler {
             Shutdown => event_loop.shutdown(),
             Send(target, packet) => self.connections[target].message_queue.push(packet),
             Kill(target) => {
-                event_loop.deregister(&self.connections[target].stream).expect("io::Error while deregistering socket.");
-                self.connections[target].stream.shutdown(tcp::Shutdown::Both).expect("io::Error while shutting down socket.");
+                event_loop.deregister(&self.connections[target].stream)
+                          .expect("io::Error while deregistering socket.");
+                self.connections[target]
+                    .stream
+                    .shutdown(tcp::Shutdown::Both)
+                    .expect("io::Error while shutting down socket.");
                 // TODO: Better decern and handle possible errors.
                 self.connections.remove(target);
             }
@@ -571,7 +605,9 @@ fn handle_packet<T: EventLoop>(to_handle: NetworkPacket, sender: Token, event_lo
                                 NetworkPacket::Error(NetworkError::VersionMismatch(version.to_owned(), VERSION.to_owned())))
             }
         }
-        NetworkPacket::Error(error) => if ::check_should_crash() { panic!(error) } else { unimplemented!() },
+        NetworkPacket::Error(error) => {
+            if ::check_should_crash() { panic!(error) } else { unimplemented!() }
+        }
         #[cfg(test)]
         NetworkPacket::Test(to_mod) => {
             match to_mod {
