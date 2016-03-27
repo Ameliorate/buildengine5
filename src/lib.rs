@@ -1,4 +1,4 @@
-#![feature(custom_derive, plugin, const_fn)]
+#![feature(custom_derive, plugin, const_fn, type_ascription)]
 #![plugin(serde_macros)]
 #![deny(missing_docs,
         missing_debug_implementations, missing_copy_implementations,
@@ -17,11 +17,13 @@ extern crate bincode;
 extern crate byteorder;
 extern crate either;
 extern crate env_logger;
+extern crate hlua;
 extern crate mio;
 extern crate serde;
 extern crate slab;
 
 pub mod net;
+pub mod script;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::error::Error;
@@ -62,7 +64,7 @@ pub struct Engine {
 impl Engine {
     /// Creates a new client game.
     pub fn new_client(server_address: SocketAddr) -> Result<Self, InitError> {
-        let mut event_loop = try!(EventLoopImpl::new(MAX_CONNECTIONS));
+        let mut event_loop = try!(EventLoopImpl::new(MAX_CONNECTIONS, Vec::new()));
         let client = try!(Client::spawn_client(server_address, &mut event_loop));
         Ok(Engine {
             event_loop: Box::new(event_loop),
@@ -72,7 +74,7 @@ impl Engine {
 
     /// Creates a new server.
     pub fn new_server(server_address: &SocketAddr) -> Result<Self, InitError> {
-        let event_loop = try!(EventLoopImpl::new(MAX_CONNECTIONS));
+        let event_loop = try!(EventLoopImpl::new(MAX_CONNECTIONS, Vec::new()));
         let listener = try!(TcpListener::bind(server_address));
         event_loop.add_listener(listener);
         Ok(Engine {

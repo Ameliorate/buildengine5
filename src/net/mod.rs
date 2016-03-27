@@ -2,6 +2,7 @@
 //!
 //! At some time, most of this code may be moved into a new crate.
 
+use std::borrow::Borrow;
 use std::convert::From;
 use std::error::Error;
 use std::fmt;
@@ -57,6 +58,8 @@ pub trait EventLoop: Debug {
     fn run_once(&mut self) -> Result<(), io::Error>;
     /// Run the loop forever, or until shutdown() is called.
     fn run(&mut self) -> Result<(), io::Error>;
+    /// Add a hook to be called when receving a network message.
+    fn add_recv_hook(&mut self, hook: Box<HookRecv>);
     /// Stop the event loop after the next iteration.
     fn shutdown(&self);
     /// Send a NetworkPacket over the network.
@@ -100,15 +103,21 @@ impl EventLoopImpl {
     /// Creates a new EventLoopImpl, with the given max_connections.
     ///
     /// When the number of connections accocated with the event loop exceed max_connections, the connection is denied.
-    pub fn new(max_connections: usize) -> Result<EventLoopImpl, io::Error> {
+    pub fn new(max_connections: usize,
+               recv_hooks: Vec<Box<HookRecv>>)
+               -> Result<EventLoopImpl, io::Error> {
         Ok(EventLoopImpl {
             mio_event_loop: try!(MioEventLoop::new()),
-            handler: Handler::new(max_connections),
+            handler: Handler::new(max_connections, recv_hooks),
         })
     }
 }
 
 impl EventLoop for EventLoopImpl {
+    fn add_recv_hook(&mut self, hook: Box<HookRecv>) {
+        self.handler.recv_hooks.push(hook);
+    }
+
     fn run_once(&mut self) -> Result<(), io::Error> {
         self.mio_event_loop.run_once(&mut self.handler, None)
     }
@@ -184,6 +193,14 @@ pub struct EventLoopImplRef {
     channel: mio::Sender<HandlerMessage>,
 }
 
+impl EventLoopImplRef {
+    fn new(chan: mio::Sender<HandlerMessage>) -> Self {
+        EventLoopImplRef {
+            channel: chan,
+        }
+    }
+}
+
 impl<'a> From<&'a mut EventLoopImpl> for EventLoopImplRef {
     fn from(from: &'a mut EventLoopImpl) -> Self {
         EventLoopImplRef { channel: from.mio_event_loop.channel() }
@@ -191,6 +208,10 @@ impl<'a> From<&'a mut EventLoopImpl> for EventLoopImplRef {
 }
 
 impl EventLoop for EventLoopImplRef {
+    fn add_recv_hook(&mut self, _hook: Box<HookRecv>) {
+        panic!("Called add_recv_hook() on a EventLoopImplRef. This is an immutable reference and can't use mutable methods.")
+    }
+
     fn run_once(&mut self) -> Result<(), io::Error> {
         panic!("Called run_once() on a EventLoopImplRef. This is an immutable reference and can't use mutable methods.")
     }
@@ -278,6 +299,10 @@ impl<'a, 'b> EventLoopImplMutRef<'a, 'b> {
 }
 
 impl<'a, 'b> EventLoop for EventLoopImplMutRef<'a, 'b> {
+    fn add_recv_hook(&mut self, hook: Box<HookRecv>) {
+        self.handler.recv_hooks.push(hook);
+    }
+
     fn run_once(&mut self) -> Result<(), io::Error> {
         self.mio_event_loop.run_once(&mut self.handler, None)
     }
@@ -350,14 +375,25 @@ impl<'a, 'b> EventLoop for EventLoopImplMutRef<'a, 'b> {
 pub struct Handler {
     connections: Slab<Connection>,
     listeners: Vec<TcpListener>,
+    recv_hooks: Vec<Box<HookRecv>>,
+}
+
+impl Debug for HookRecv {
+    fn fmt(&self, fmt: &mut Formatter) -> Result<(), fmt::Error> {
+        fmt.write_str("HookRecv")
+        // Any better way to represent this?
+    }
 }
 
 impl Handler {
     /// Creates a new instance of a Handler. Does not listen for connections.
-    pub fn new(max_connections: usize) -> Self {
+    pub fn new(max_connections: usize,
+               recv_hooks: Vec<Box<HookRecv>>)
+               -> Self {
         Handler {
             connections: Slab::new_starting_at(Token::from_usize(1), max_connections),
             listeners: Vec::new(),
+            recv_hooks: recv_hooks,
         }
     }
 }
@@ -392,7 +428,17 @@ impl MioHandler for Handler {
             // I do this because Read.take takes a self, instead of a reasonable alternitive.
             // However &mut Read is it's self a Reader. So I use that instead.
             let dese = deserialize_packet(&packet).unwrap();
-            handle_packet(dese, token, &EventLoopImplMutRef::new(event_loop, self));
+            let mut deser_prosessed: LocalOption<NetworkPacket> = LocalOption::Some(dese);
+            for hook in self.recv_hooks.borrow(): &[_] {
+                hook: &Box<HookRecv>;
+                let deser_prosessed_opt: Option<_> = deser_prosessed.clone().into();
+                if deser_prosessed_opt.is_none() { break; }
+                deser_prosessed = hook(deser_prosessed_opt.unwrap(), EventLoopImplRef::new(event_loop.channel()));
+            }
+            let deser_prosessed_opt: Option<_> = deser_prosessed.into();
+            if deser_prosessed_opt.is_some() {
+                handle_packet(deser_prosessed_opt.unwrap(), token, &EventLoopImplMutRef::new(event_loop, self));
+            }
         }
 
         if events.is_writable() {
@@ -491,6 +537,25 @@ pub enum HandlerMessage {
     AddListener(TcpListener),
 }
 
+/// Used for hacks involving impls for types that would otherwise be illegal.
+#[derive(Clone)]
+#[allow(missing_debug_implementations)]
+pub enum LocalOption<T: Clone> {
+    /// The presence of a value.
+    Some(T),
+    /// The apsence of a value.
+    None,
+}
+
+impl<T: Clone> Into<Option<T>> for LocalOption<T> {
+    fn into(self) -> Option<T> {
+        match self {
+            LocalOption::Some(t) => Some(t),
+            LocalOption::None => None,
+        }
+    }
+}
+
 /// Sent in the case of an error that should be sent to the peer.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum NetworkError {
@@ -557,6 +622,9 @@ pub enum NetworkPacket {
     #[cfg(test)]
     Test(test::TestValToModify),
 }
+
+/// Tho hook called when receving a packet.
+pub type HookRecv = Fn(NetworkPacket, EventLoopImplRef) -> LocalOption<NetworkPacket>;
 
 /// Parses a str to a SocketAddr.
 ///
