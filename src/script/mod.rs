@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::fmt;
 
-use hlua::{Lua, PushGuard};
+use hlua::Lua;
 use hlua::lua_tables::LuaTable;
 
 /// The engine lua standard library. Contains functionality relating to making a game with the engine.
@@ -37,7 +37,8 @@ impl<'lua> Engine<'lua> {
         lua.execute::<()>(PRELUDE).expect("Syntax error in prelude module of engine");
         let mut main = "".to_owned();
         {
-            let mut prelude_table: LuaTable<PushGuard<&mut Lua>> =
+            // Set up module table.
+            let mut prelude_table: LuaTable<_> =
                 lua.get("prelude_buildengine")
                    .expect("Loaded prelude but prelude_buildengine table was not found");
             let mut modules = prelude_table.empty_array("modules");
