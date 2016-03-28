@@ -25,6 +25,7 @@ extern crate slab;
 pub mod net;
 pub mod script;
 
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::error::Error;
 use std::fmt::{Display, Error as FmtError, Formatter};
@@ -79,7 +80,7 @@ impl<'be> Engine<'be> {
     }
 
     /// Creates a new server.
-    pub fn new_server(server_address: &SocketAddr, game_scripts: Vec<&str>) -> Result<Self, InitError> {
+    pub fn new_server(server_address: &SocketAddr, game_scripts: HashMap<String, String>) -> Result<Self, InitError> {
         let event_loop = try!(EventLoopImpl::new(MAX_CONNECTIONS, Vec::new()));
         let listener = try!(TcpListener::bind(server_address));
         event_loop.add_listener(listener);
