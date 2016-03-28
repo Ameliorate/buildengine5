@@ -35,7 +35,7 @@ impl<'lua> Engine<'lua> {
         scripts.insert("buildengine".to_owned(), ENGINE_STD.to_owned());
         let mut lua = Lua::new();
         lua.openlibs();
-        lua.execute::<()>(PRELUDE).expect("Syntax error in prelude module of engine");
+        lua.execute::<()>(PRELUDE).expect("Error in prelude module of engine");
         let mut main = "".to_owned();
         {
             // Set up module table.
@@ -52,7 +52,7 @@ impl<'lua> Engine<'lua> {
                 modules.set(name, body);
             }
         }
-        lua.execute::<()>(&main).expect("Syntax error in init module of script");
+        lua.execute::<()>(&main).expect("Error in script");
         Engine { interpreter: lua }
     }
 }
