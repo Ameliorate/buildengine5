@@ -105,7 +105,7 @@ fn event_loop_impl_add_socket() {
 
 /// Constructs an event loop on a new thread.
 fn event_loop_helper() -> (super::EventLoopImplRef, JoinHandle<super::EventLoopImpl>) {
-    let mut event_loop = super::EventLoopImpl::new(super::MAX_CONNECTIONS).unwrap();
+    let mut event_loop = super::EventLoopImpl::new(super::MAX_CONNECTIONS, Vec::new()).unwrap();
     let event_loop_ref: super::EventLoopImplRef = (&mut event_loop).into();
     (event_loop_ref,
      thread::spawn(move || {
@@ -143,7 +143,7 @@ fn event_loop_impl_kill() {
 /// Constructs an EventLoopImpl.
 #[test]
 fn event_loop_impl_new() {
-    super::EventLoopImpl::new(super::MAX_CONNECTIONS).unwrap();
+    super::EventLoopImpl::new(super::MAX_CONNECTIONS, Vec::new()).unwrap();
 }
 
 /// Sends a packet using the event loop, but without the client helper struct.
@@ -186,7 +186,7 @@ fn event_loop_impl_send() {
 #[test]
 fn event_loop_impl_shutdown() {
     let (tx, rx) = channel::<Result<(), io::Error>>();
-    let mut event_loop = super::EventLoopImpl::new(super::MAX_CONNECTIONS).unwrap();
+    let mut event_loop = super::EventLoopImpl::new(super::MAX_CONNECTIONS, Vec::new()).unwrap();
     let event_loop_ref: super::EventLoopImplRef = (&mut event_loop).into();
     let thread = thread::spawn(move || tx.send(event_loop.run()).unwrap());
     event_loop_ref.shutdown();
@@ -235,5 +235,5 @@ fn get_packet_length_correct() {
 /// Constructs a Handler.
 #[test]
 fn handler_new() {
-    super::Handler::new(super::MAX_CONNECTIONS);
+    super::Handler::new(super::MAX_CONNECTIONS, Vec::new());
 }

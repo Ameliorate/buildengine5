@@ -624,7 +624,7 @@ pub enum NetworkPacket {
 }
 
 /// Tho hook called when receving a packet.
-pub type HookRecv = Fn(NetworkPacket, EventLoopImplRef) -> LocalOption<NetworkPacket>;
+pub type HookRecv = Fn(NetworkPacket, EventLoopImplRef) -> LocalOption<NetworkPacket> + Send;
 
 /// Parses a str to a SocketAddr.
 ///
