@@ -29,7 +29,8 @@ impl<'lua> Engine<'lua> {
     ///
     /// The interpreter is initalized with the lua standard library, and the engine std.
     ///
-    /// All scripts are loaded into the same namespace, and must return nothing when loaded.
+    /// The prelude_buildengine.modules table is initalized with the source code of the scripts passed through the scripts parameter,
+    /// sans the init entry, which is executed.
     pub fn new(mut scripts: HashMap<String, String>) -> Self {
         scripts.insert("buildengine".to_owned(), ENGINE_STD.to_owned());
         let mut lua = Lua::new();
