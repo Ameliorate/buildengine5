@@ -49,37 +49,44 @@ static SHOULD_CRASH: AtomicBool = AtomicBool::new(true);    // Basically Erlang'
 /// While you may never need the fields exposed, they are exposed if you ever want to inspect the game state.
 /// You probably, however don't want to mutate the state directly. That can mess up client-server syncronization.
 #[derive(Debug)]
-pub struct Engine {
-    /// The clientside or serverside state.
+pub struct Engine<'be> {
+    /// The clientside or serverside networking state.
     ///
     /// Currently a Some if it is a client, or None if server.
-    pub client_or_server: Option<Client>,
+    pub net_state: Option<Client>,
 
     /// The networking event loop. Mostly used in other functions for sending, adding, and killing connections.
     ///
     /// Also contains all state relating to networking.
     pub event_loop: Box<EventLoop>,
+
+    /// The scripting backend for the engine.
+    ///
+    /// Not present on a client, for security reasons.
+    pub script_engine: Option<script::Engine<'be>>,
 }
 
-impl Engine {
+impl<'be> Engine<'be> {
     /// Creates a new client game.
     pub fn new_client(server_address: SocketAddr) -> Result<Self, InitError> {
         let mut event_loop = try!(EventLoopImpl::new(MAX_CONNECTIONS, Vec::new()));
         let client = try!(Client::spawn_client(server_address, &mut event_loop));
         Ok(Engine {
             event_loop: Box::new(event_loop),
-            client_or_server: Some(client),
+            net_state: Some(client),
+            script_engine: None,
         })
     }
 
     /// Creates a new server.
-    pub fn new_server(server_address: &SocketAddr) -> Result<Self, InitError> {
+    pub fn new_server(server_address: &SocketAddr, game_scripts: Vec<&str>) -> Result<Self, InitError> {
         let event_loop = try!(EventLoopImpl::new(MAX_CONNECTIONS, Vec::new()));
         let listener = try!(TcpListener::bind(server_address));
         event_loop.add_listener(listener);
         Ok(Engine {
             event_loop: Box::new(event_loop),
-            client_or_server: None,
+            net_state: None,
+            script_engine: Some(script::Engine::new(game_scripts)),
         })
     }
 }
