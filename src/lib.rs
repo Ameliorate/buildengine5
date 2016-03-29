@@ -1,4 +1,4 @@
-#![feature(custom_derive, plugin, const_fn, type_ascription)]
+#![feature(custom_derive, plugin, const_fn)]
 #![plugin(serde_macros)]
 #![deny(missing_docs,
         missing_debug_implementations, missing_copy_implementations,
@@ -80,7 +80,9 @@ impl<'be> Engine<'be> {
     }
 
     /// Creates a new server.
-    pub fn new_server(server_address: &SocketAddr, game_scripts: HashMap<String, String>) -> Result<Self, InitError> {
+    pub fn new_server(server_address: &SocketAddr,
+                      game_scripts: HashMap<String, String>)
+                      -> Result<Self, InitError> {
         let event_loop = try!(EventLoopImpl::new(MAX_CONNECTIONS, Vec::new()));
         let listener = try!(TcpListener::bind(server_address));
         event_loop.add_listener(listener);
