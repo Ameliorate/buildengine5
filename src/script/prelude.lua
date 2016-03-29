@@ -11,3 +11,11 @@ function prelude_buildengine.package_searcher (modname)
 end
 
 table.insert(package.searchers, 1, prelude_buildengine.package_searcher)
+
+function prelude_buildengine.call_fn ()
+    -- Assumes that prelude_buildengine.fn_to_call is a string pointing to the function to call, and
+    -- prelude_buildengine.args is the arguments to that function.
+    -- This function is used to call functions with arguments in rust,
+    -- since it isn't exposed in hlua.
+    _G[prelude_buildengine.fn_to_call](unpack(prelude_buildengine.args))
+end
