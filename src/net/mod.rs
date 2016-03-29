@@ -195,9 +195,7 @@ pub struct EventLoopImplRef {
 
 impl EventLoopImplRef {
     fn new(chan: mio::Sender<HandlerMessage>) -> Self {
-        EventLoopImplRef {
-            channel: chan,
-        }
+        EventLoopImplRef { channel: chan }
     }
 }
 
@@ -387,9 +385,7 @@ impl Debug for HookRecv {
 
 impl Handler {
     /// Creates a new instance of a Handler. Does not listen for connections.
-    pub fn new(max_connections: usize,
-               recv_hooks: Vec<Box<HookRecv>>)
-               -> Self {
+    pub fn new(max_connections: usize, recv_hooks: Vec<Box<HookRecv>>) -> Self {
         Handler {
             connections: Slab::new_starting_at(Token::from_usize(1), max_connections),
             listeners: Vec::new(),
@@ -429,15 +425,22 @@ impl MioHandler for Handler {
             // However &mut Read is it's self a Reader. So I use that instead.
             let dese = deserialize_packet(&packet).unwrap();
             let mut deser_prosessed: LocalOption<NetworkPacket> = LocalOption::Some(dese);
-            for hook in self.recv_hooks.borrow(): &[_] {
-                hook: &Box<HookRecv>;
-                let deser_prosessed_opt: Option<_> = deser_prosessed.clone().into();
-                if deser_prosessed_opt.is_none() { break; }
-                deser_prosessed = hook(deser_prosessed_opt.unwrap(), EventLoopImplRef::new(event_loop.channel()));
+            {
+                let iter: &[_] = self.recv_hooks.borrow();
+                for hook in iter {
+                    let deser_prosessed_opt: Option<_> = deser_prosessed.clone().into();
+                    if deser_prosessed_opt.is_none() {
+                        break;
+                    }
+                    deser_prosessed = hook(deser_prosessed_opt.unwrap(),
+                                           EventLoopImplRef::new(event_loop.channel()));
+                }
             }
             let deser_prosessed_opt: Option<_> = deser_prosessed.into();
             if deser_prosessed_opt.is_some() {
-                handle_packet(deser_prosessed_opt.unwrap(), token, &EventLoopImplMutRef::new(event_loop, self));
+                handle_packet(deser_prosessed_opt.unwrap(),
+                              token,
+                              &EventLoopImplMutRef::new(event_loop, self));
             }
         }
 
