@@ -39,9 +39,10 @@ impl<'lua> Engine<'lua> {
         let mut main = "".to_owned();
         {
             // Set up module table.
-            let mut prelude_table: LuaTable<_> =
-                lua.get("prelude_buildengine")
-                   .expect("Loaded prelude but prelude_buildengine table was not found");
+            let mut prelude_table: LuaTable<_> = lua.get("prelude_buildengine")
+                                                    .expect("Loaded prelude but \
+                                                             prelude_buildengine table was not \
+                                                             found");
             let mut modules = prelude_table.empty_array("modules");
             for script in scripts {
                 let (name, body) = script;
@@ -67,12 +68,11 @@ impl<'lua> Engine<'lua> {
                       -> Result<Vec<AnyLuaValue>, ExecEventError> {
         args.insert(0, AnyLuaValue::LuaString(event_name));
         {
-            let mut prelude_table: LuaTable<_> =
-                self.interpreter
-                    .get("prelude_buildengine")
-                    .expect("The prelude_table wasn't found. Was the prelude properly loaded?");
-            let a_event: Option<_> =
-                prelude_table.get::<LuaFunction<_>, _>("activate_event");
+            let mut prelude_table: LuaTable<_> = self.interpreter
+                                                     .get("prelude_buildengine")
+                                                     .expect("The prelude_table wasn't found. \
+                                                              Was the prelude properly loaded?");
+            let a_event: Option<_> = prelude_table.get::<LuaFunction<_>, _>("activate_event");
             if a_event.is_none() {
                 return Err(ExecEventError::EngineStdNotImported);
             }
@@ -80,24 +80,27 @@ impl<'lua> Engine<'lua> {
         match self.call_prelude_fn("activate_event", args) {
             Ok(Some(ret)) => Ok(any_lua_to_vec(ret)),
             Ok(None) => Ok(Vec::new()),
-            Err(err) => Err(err.into())
+            Err(err) => Err(err.into()),
         }
     }
 
     /// Call the given lua function in the prelude table with the given arguments.
     pub fn call_prelude_fn(&mut self,
-                   fn_to_call: &str,
-                   args: Vec<AnyLuaValue>)
-                   -> Result<Option<AnyLuaValue>, LuaError> {
-        let mut prelude_table: LuaTable<_> =
-            self.interpreter
-                .get("prelude_buildengine")
-                .expect("The prelude_table wasn't found. Was the prelude properly loaded?");
+                           fn_to_call: &str,
+                           args: Vec<AnyLuaValue>)
+                           -> Result<Option<AnyLuaValue>, LuaError> {
+        let mut prelude_table: LuaTable<_> = self.interpreter
+                                                 .get("prelude_buildengine")
+                                                 .expect("The prelude_table wasn't found. Was \
+                                                          the prelude properly loaded?");
         prelude_table.set("fn_to_call", fn_to_call);
         prelude_table.set("args", args);
         {
             let mut call_fn_lua: LuaFunction<_> = prelude_table.get("call_prelude_fn")
-                .expect("prelude_buildengine.call_prelude_fn not found. Was the prelude properly loaded?");
+                                                               .expect("prelude_buildengine.\
+                                                                        call_prelude_fn not \
+                                                                        found. Was the prelude \
+                                                                        properly loaded?");
             try!(call_fn_lua.call::<()>());
         }
         let ret: Option<AnyLuaValue> = prelude_table.get("ret");

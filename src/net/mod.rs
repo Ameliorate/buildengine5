@@ -131,7 +131,9 @@ impl EventLoop for EventLoopImpl {
             Err(NotifyError::Io(err)) => {
                 panic!("Io Error while calling shutdown() on event loop: {}", err)
             }
-            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling shutdown()! Is it running?"),
+            Err(NotifyError::Full(_)) => {
+                panic!("Event loop channel full while calling shutdown()! Is it running?")
+            }
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling shutdown()"),
             Ok(val) => val,
         };
@@ -142,7 +144,9 @@ impl EventLoop for EventLoopImpl {
             Err(NotifyError::Io(err)) => {
                 panic!("Io Error while calling send() on event loop: {}", err)
             }
-            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling send()! Is it running?"),
+            Err(NotifyError::Full(_)) => {
+                panic!("Event loop channel full while calling send()! Is it running?")
+            }
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling send()"),
             Ok(val) => val,
         };
@@ -153,7 +157,9 @@ impl EventLoop for EventLoopImpl {
             Err(NotifyError::Io(err)) => {
                 panic!("Io Error while calling kill() on event loop: {}", err)
             }
-            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling kill()! Is it running?"),
+            Err(NotifyError::Full(_)) => {
+                panic!("Event loop channel full while calling kill()! Is it running?")
+            }
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling kill()"),
             Ok(val) => val,
         };
@@ -165,7 +171,9 @@ impl EventLoop for EventLoopImpl {
             Err(NotifyError::Io(err)) => {
                 panic!("Io Error while calling add_socket() on event loop: {}", err)
             }
-            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling add_socket()! Is it running?"),
+            Err(NotifyError::Full(_)) => {
+                panic!("Event loop channel full while calling add_socket()! Is it running?")
+            }
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling add_socket()"),
             Ok(val) => val,
         };
@@ -178,7 +186,9 @@ impl EventLoop for EventLoopImpl {
                 panic!("Io Error while calling add_listener() on event loop: {}",
                        err)
             }
-            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling add_listener()! Is it running?"),
+            Err(NotifyError::Full(_)) => {
+                panic!("Event loop channel full while calling add_listener()! Is it running?")
+            }
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling add_listener()"),
             Ok(val) => val,
         };
@@ -207,15 +217,18 @@ impl<'a> From<&'a mut EventLoopImpl> for EventLoopImplRef {
 
 impl EventLoop for EventLoopImplRef {
     fn add_recv_hook(&mut self, _hook: Box<HookRecv>) {
-        panic!("Called add_recv_hook() on a EventLoopImplRef. This is an immutable reference and can't use mutable methods.")
+        panic!("Called add_recv_hook() on a EventLoopImplRef. This is an immutable reference and \
+                can't use mutable methods.")
     }
 
     fn run_once(&mut self) -> Result<(), io::Error> {
-        panic!("Called run_once() on a EventLoopImplRef. This is an immutable reference and can't use mutable methods.")
+        panic!("Called run_once() on a EventLoopImplRef. This is an immutable reference and can't \
+                use mutable methods.")
     }
 
     fn run(&mut self) -> Result<(), io::Error> {
-        panic!("Called run() on a EventLoopImplRef. This is an immutable reference and can't use mutable methods.")
+        panic!("Called run() on a EventLoopImplRef. This is an immutable reference and can't use \
+                mutable methods.")
     }
 
     fn shutdown(&self) {
@@ -223,7 +236,9 @@ impl EventLoop for EventLoopImplRef {
             Err(NotifyError::Io(err)) => {
                 panic!("Io Error while calling shutdown() on event loop: {}", err)
             }
-            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling shutdown()! Is it running?"),
+            Err(NotifyError::Full(_)) => {
+                panic!("Event loop channel full while calling shutdown()! Is it running?")
+            }
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling shutdown()"),
             Ok(val) => val,
         };
@@ -234,7 +249,9 @@ impl EventLoop for EventLoopImplRef {
             Err(NotifyError::Io(err)) => {
                 panic!("Io Error while calling send() on event loop: {}", err)
             }
-            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling send()! Is it running?"),
+            Err(NotifyError::Full(_)) => {
+                panic!("Event loop channel full while calling send()! Is it running?")
+            }
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling send()"),
             Ok(val) => val,
         };
@@ -245,7 +262,9 @@ impl EventLoop for EventLoopImplRef {
             Err(NotifyError::Io(err)) => {
                 panic!("Io Error while calling kill() on event loop: {}", err)
             }
-            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling kill()! Is it running?"),
+            Err(NotifyError::Full(_)) => {
+                panic!("Event loop channel full while calling kill()! Is it running?")
+            }
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling kill()"),
             Ok(val) => val,
         };
@@ -257,7 +276,9 @@ impl EventLoop for EventLoopImplRef {
             Err(NotifyError::Io(err)) => {
                 panic!("Io Error while calling add_socket() on event loop: {}", err)
             }
-            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling add_socket()! Is it running?"),
+            Err(NotifyError::Full(_)) => {
+                panic!("Event loop channel full while calling add_socket()! Is it running?")
+            }
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling add_socket()"),
             Ok(val) => val,
         };
@@ -270,7 +291,9 @@ impl EventLoop for EventLoopImplRef {
                 panic!("Io Error while calling add_listener() on event loop: {}",
                        err)
             }
-            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling add_listener()! Is it running?"),
+            Err(NotifyError::Full(_)) => {
+                panic!("Event loop channel full while calling add_listener()! Is it running?")
+            }
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling add_listener()"),
             Ok(val) => val,
         };
@@ -314,7 +337,9 @@ impl<'a, 'b> EventLoop for EventLoopImplMutRef<'a, 'b> {
             Err(NotifyError::Io(err)) => {
                 panic!("Io Error while calling shutdown() on event loop: {}", err)
             }
-            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling shutdown()! Is it running?"),
+            Err(NotifyError::Full(_)) => {
+                panic!("Event loop channel full while calling shutdown()! Is it running?")
+            }
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling shutdown()"),
             Ok(val) => val,
         };
@@ -325,7 +350,9 @@ impl<'a, 'b> EventLoop for EventLoopImplMutRef<'a, 'b> {
             Err(NotifyError::Io(err)) => {
                 panic!("Io Error while calling send() on event loop: {}", err)
             }
-            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling send()! Is it running?"),
+            Err(NotifyError::Full(_)) => {
+                panic!("Event loop channel full while calling send()! Is it running?")
+            }
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling send()"),
             Ok(val) => val,
         };
@@ -336,7 +363,9 @@ impl<'a, 'b> EventLoop for EventLoopImplMutRef<'a, 'b> {
             Err(NotifyError::Io(err)) => {
                 panic!("Io Error while calling kill() on event loop: {}", err)
             }
-            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling kill()! Is it running?"),
+            Err(NotifyError::Full(_)) => {
+                panic!("Event loop channel full while calling kill()! Is it running?")
+            }
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling kill()"),
             Ok(val) => val,
         };
@@ -348,7 +377,9 @@ impl<'a, 'b> EventLoop for EventLoopImplMutRef<'a, 'b> {
             Err(NotifyError::Io(err)) => {
                 panic!("Io Error while calling add_socket() on event loop: {}", err)
             }
-            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling add_socket()! Is it running?"),
+            Err(NotifyError::Full(_)) => {
+                panic!("Event loop channel full while calling add_socket()! Is it running?")
+            }
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling add_socket()"),
             Ok(val) => val,
         };
@@ -361,7 +392,9 @@ impl<'a, 'b> EventLoop for EventLoopImplMutRef<'a, 'b> {
                 panic!("Io Error while calling add_listener() on event loop: {}",
                        err)
             }
-            Err(NotifyError::Full(_)) => panic!("Event loop channel full while calling add_listener()! Is it running?"),
+            Err(NotifyError::Full(_)) => {
+                panic!("Event loop channel full while calling add_listener()! Is it running?")
+            }
             Err(NotifyError::Closed(_)) => panic!("Event loop closed while calling add_listener()"),
             Ok(val) => val,
         };
@@ -576,7 +609,8 @@ impl Display for NetworkError {
         match *self {
             NetworkError::VersionMismatch(ref ver1, ref ver2) => {
                 write!(fmt,
-                       "VersionMismatch: The versions of the client and server attempting to connect mismatch. ver1: {}, ver2: {}",
+                       "VersionMismatch: The versions of the client and server attempting to \
+                        connect mismatch. ver1: {}, ver2: {}",
                        ver1,
                        ver2)
             }
@@ -591,8 +625,13 @@ impl Display for NetworkError {
 impl Error for NetworkError {
     fn description(&self) -> &str {
         match *self {
-            NetworkError::VersionMismatch(_, _) => "VersionMismatch: The versions of the client and server attempting to connect mismatch.",
-            NetworkError::ShouldCrashBothTrue => "ShouldCrashBothTrue: Both peers have should_crash == false.",
+            NetworkError::VersionMismatch(_, _) => {
+                "VersionMismatch: The versions of the client and server attempting to connect \
+                 mismatch."
+            }
+            NetworkError::ShouldCrashBothTrue => {
+                "ShouldCrashBothTrue: Both peers have should_crash == false."
+            }
         }
     }
 
@@ -638,7 +677,8 @@ pub type HookRecv = Fn(NetworkPacket, EventLoopImplRef) -> LocalOption<NetworkPa
 /// * Calling with an ip address that resolves to more than 1 ip address.
 pub fn ip(ip_addr: &str) -> SocketAddr {
     if ip_addr.starts_with("localhost") {
-        panic!("Because localhost can resolve to both 127.0.0.1, and the vairous IPV6 versions of 127.0.0.1, it may not be used. Please instead use 127.0.0.1");
+        panic!("Because localhost can resolve to both 127.0.0.1, and the vairous IPV6 versions \
+                of 127.0.0.1, it may not be used. Please instead use 127.0.0.1");
     }
     let mut iter = ip_addr.to_socket_addrs().unwrap();
     let ip = iter.next().unwrap();
