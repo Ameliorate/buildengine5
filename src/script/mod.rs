@@ -4,7 +4,8 @@
 mod test;
 
 use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
+use std::error::Error;
+use std::fmt::{Debug, Display, Formatter};
 use std::fmt;
 
 use hlua::{Lua, LuaError, LuaFunction, LuaTable};
@@ -121,6 +122,26 @@ pub enum ExecEventError {
     EngineStdNotImported,
     /// A lua error ocoured executing the event.
     LuaError(LuaError),
+}
+
+impl Display for ExecEventError {
+    fn fmt(&self, fmt: &mut Formatter) -> Result<(), fmt::Error> {
+        match *self {
+            ExecEventError::EngineStdNotImported => write!(fmt, "The standard library for the engine \
+                                                                 was not imported while trying to execute an event"),
+            ExecEventError::LuaError(ref _err) => write!(fmt, "An unknown lua error occoured while executing an event."),
+        }
+    }
+}
+
+impl Error for ExecEventError {
+    fn description(&self) -> &str {
+        match *self {
+            ExecEventError::EngineStdNotImported => "The standard library for the engine \
+                                                     was not imported while trying to execute an event",
+            ExecEventError::LuaError(ref _err) => "An unknown lua error occoured while executing an event.",
+        }
+    }
 }
 
 impl From<LuaError> for ExecEventError {
