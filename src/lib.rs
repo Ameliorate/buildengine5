@@ -32,17 +32,13 @@ use std::fmt::{Display, Error as FmtError, Formatter};
 use std::io;
 use std::net::SocketAddr;
 
-use mio::tcp::TcpListener;
-
-use net::{EventLoop, EventLoopImpl, MAX_CONNECTIONS, client};
-use net::client::Client;
-
 /// The current version of buildengine. Fallows Semantic Versioning.
 pub const VERSION: &'static str = "0.0.1";
 
 /// If the game is allowed to crash in the event of a semi-handleable error, such as a bad network packet or a peer crashing.
 ///
 /// Programming mistakes however, will still panic.
+#[allow(unused)]
 static SHOULD_CRASH: AtomicBool = AtomicBool::new(true);    // Basically Erlang's too_big_to_fail process_flag.
 
 /// Main game struct. Contains all state nescary to work.
@@ -51,6 +47,7 @@ static SHOULD_CRASH: AtomicBool = AtomicBool::new(true);    // Basically Erlang'
 /// You probably, however don't want to mutate the state directly. That can mess up client-server syncronization.
 #[derive(Debug)]
 pub struct Engine<'be> {
+    /*
     /// The clientside or serverside networking state.
     ///
     /// Currently a Some if it is a client, or None if server.
@@ -59,7 +56,7 @@ pub struct Engine<'be> {
     /// The networking event loop. Mostly used in other functions for sending, adding, and killing connections.
     ///
     /// Also contains all state relating to networking.
-    pub event_loop: Box<EventLoop>,
+    pub event_loop: Box<EventLoop>,*/
 
     /// The scripting backend for the engine.
     ///
@@ -69,26 +66,21 @@ pub struct Engine<'be> {
 
 impl<'be> Engine<'be> {
     /// Creates a new client game.
-    pub fn new_client(server_address: SocketAddr) -> Result<Self, InitError> {
-        let mut event_loop = try!(EventLoopImpl::new(MAX_CONNECTIONS, Vec::new()));
-        let client = try!(Client::spawn_client(server_address, &mut event_loop));
-        Ok(Engine {
+    pub fn new_client(_server_address: SocketAddr) -> Result<Self, InitError> {
+        Ok(Engine {/*
             event_loop: Box::new(event_loop),
-            net_state: Some(client),
+            net_state: Some(client),*/
             script_engine: None,
         })
     }
 
     /// Creates a new server.
-    pub fn new_server(server_address: &SocketAddr,
+    pub fn new_server(_server_address: &SocketAddr,
                       game_scripts: HashMap<String, String>)
                       -> Result<Self, InitError> {
-        let event_loop = try!(EventLoopImpl::new(MAX_CONNECTIONS, Vec::new()));
-        let listener = try!(TcpListener::bind(server_address));
-        event_loop.add_listener(listener);
-        Ok(Engine {
+        Ok(Engine {/*
             event_loop: Box::new(event_loop),
-            net_state: None,
+            net_state: None,*/
             script_engine: Some(try!(script::Engine::new(game_scripts))),
         })
     }
@@ -96,9 +88,9 @@ impl<'be> Engine<'be> {
 
 /// An error hapened while initing the game.
 #[derive(Debug)]
-pub enum InitError {
+pub enum InitError {/*
     /// An error occoured when initalising the client code.
-    ClientInitError(client::InitError),
+    ClientInitError(client::InitError),*/
     /// An std::io::Error. Who knows where this comes up.
     IoError(io::Error),
     /// An error occoured from an error in lua code passed to the script engine.
@@ -108,7 +100,7 @@ pub enum InitError {
 impl Display for InitError {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), FmtError> {
         match *self {
-            InitError::ClientInitError(ref err) => write!(fmt, "ClientInitError: {}", err),
+            //InitError::ClientInitError(ref err) => write!(fmt, "ClientInitError: {}", err),
             InitError::IoError(ref err) => write!(fmt, "IoError: {}", err),
             InitError::ScriptError(ref err) => write!(fmt, "ScriptError: {:?}", err),
         }
@@ -118,7 +110,7 @@ impl Display for InitError {
 impl Error for InitError {
     fn description(&self) -> &str {
         match *self {
-            InitError::ClientInitError(ref err) => err.description(),
+            //InitError::ClientInitError(ref err) => err.description(),
             InitError::IoError(ref err) => err.description(),
             InitError::ScriptError(ref _err) => "an unknown lua error occoured",
         }
@@ -126,13 +118,13 @@ impl Error for InitError {
 
     fn cause(&self) -> Option<&Error> {
         match *self {
-            InitError::ClientInitError(ref err) => Some(err),
+            //InitError::ClientInitError(ref err) => Some(err),
             InitError::IoError(ref err) => Some(err),
             InitError::ScriptError(ref _err) => None,
         }
     }
 }
-
+/*
 impl From<client::InitError> for InitError {
     fn from(err: client::InitError) -> Self {
         InitError::ClientInitError(err)
@@ -143,7 +135,7 @@ impl From<io::Error> for InitError {
     fn from(err: io::Error) -> Self {
         InitError::IoError(err)
     }
-}
+}*/
 
 impl From<hlua::LuaError> for InitError {
     fn from(err: hlua::LuaError) -> Self {
@@ -166,6 +158,7 @@ pub fn print_hello_world() {
     println!("Hello World!");
 }
 
+#[allow(unused)]
 fn check_should_crash() -> bool {
     SHOULD_CRASH.load(Ordering::Relaxed)
 }
