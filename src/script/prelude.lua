@@ -7,7 +7,7 @@ function prelude_buildengine.package_searcher (modname)
     if modsrc == nil then
         return nil
     end
-    return load(modsrc)
+    return load(modsrc, modname)
 end
 
 table.insert(package.searchers, 1, prelude_buildengine.package_searcher)

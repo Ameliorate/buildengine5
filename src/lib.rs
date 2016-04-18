@@ -89,7 +89,7 @@ impl<'be> Engine<'be> {
         Ok(Engine {
             event_loop: Box::new(event_loop),
             net_state: None,
-            script_engine: Some(script::Engine::new(game_scripts)),
+            script_engine: Some(try!(script::Engine::new(game_scripts))),
         })
     }
 }
@@ -101,6 +101,8 @@ pub enum InitError {
     ClientInitError(client::InitError),
     /// An std::io::Error. Who knows where this comes up.
     IoError(io::Error),
+    /// An error occoured from an error in lua code passed to the script engine.
+    ScriptError(hlua::LuaError),
 }
 
 impl Display for InitError {
@@ -108,6 +110,7 @@ impl Display for InitError {
         match *self {
             InitError::ClientInitError(ref err) => write!(fmt, "ClientInitError: {}", err),
             InitError::IoError(ref err) => write!(fmt, "IoError: {}", err),
+            InitError::ScriptError(ref err) => write!(fmt, "ScriptError: {:?}", err),
         }
     }
 }
@@ -117,6 +120,7 @@ impl Error for InitError {
         match *self {
             InitError::ClientInitError(ref err) => err.description(),
             InitError::IoError(ref err) => err.description(),
+            InitError::ScriptError(ref _err) => "an unknown lua error occoured",
         }
     }
 
@@ -124,6 +128,7 @@ impl Error for InitError {
         match *self {
             InitError::ClientInitError(ref err) => Some(err),
             InitError::IoError(ref err) => Some(err),
+            InitError::ScriptError(ref _err) => None,
         }
     }
 }
@@ -137,6 +142,12 @@ impl From<client::InitError> for InitError {
 impl From<io::Error> for InitError {
     fn from(err: io::Error) -> Self {
         InitError::IoError(err)
+    }
+}
+
+impl From<hlua::LuaError> for InitError {
+    fn from(err: hlua::LuaError) -> Self {
+        InitError::ScriptError(err)
     }
 }
 

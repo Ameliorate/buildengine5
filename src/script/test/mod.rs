@@ -15,7 +15,7 @@ static CALL_FN_NO_ARGS_TEST_VAL: AtomicBool = AtomicBool::new(false);
 /// Call Engine.new without any code.
 #[test]
 fn engine_new_no_code() {
-    Engine::new(HashMap::new());
+    Engine::new(HashMap::new()).unwrap();
 }
 
 /// Tests requiring a module.
@@ -24,7 +24,7 @@ fn load_module() {
     let mut scripts: HashMap<String, String> = HashMap::new();
     scripts.insert("test".to_owned(), TEST.to_owned());
     scripts.insert("init".to_owned(), REQUIRE.to_owned());
-    Engine::new(scripts);
+    Engine::new(scripts).unwrap();
 }
 
 /// Tests declaring and raising a lua event.
@@ -32,7 +32,7 @@ fn load_module() {
 fn lua_event() {
     let mut scripts: HashMap<String, String> = HashMap::new();
     scripts.insert("init".to_owned(), EVENT.to_owned());
-    let mut engine = Engine::new(scripts);
+    let mut engine = Engine::new(scripts).unwrap();
     let _ = engine.exec_event("test".to_owned(), Vec::new()).expect("Failed to exec event");
     let test_val: AnyLuaValue = engine.interpreter.get("test_val").unwrap();
     assert_eq!(test_val, AnyLuaValue::LuaBoolean(true));
@@ -43,7 +43,7 @@ fn lua_event() {
 /// Curently broken until tomaka/hlua#66
 #[test]
 fn call_fn_no_args() {
-    let mut engine = Engine::new(HashMap::new());
+    let mut engine = Engine::new(HashMap::new()).unwrap();
     let fun = function0(|| {
         CALL_FN_NO_ARGS_TEST_VAL.store(true, Ordering::Relaxed);
     });

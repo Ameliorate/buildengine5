@@ -31,7 +31,7 @@ impl<'lua> Engine<'lua> {
     ///
     /// The prelude_buildengine.modules table is initalized with the source code of the scripts passed through the scripts parameter,
     /// sans the init entry, which is executed.
-    pub fn new(mut scripts: HashMap<String, String>) -> Self {
+    pub fn new(mut scripts: HashMap<String, String>) -> Result<Self, LuaError> {
         scripts.insert("buildengine".to_owned(), ENGINE_STD.to_owned());
         let mut lua = Lua::new();
         lua.openlibs();
@@ -53,8 +53,8 @@ impl<'lua> Engine<'lua> {
                 modules.set(name, body);
             }
         }
-        lua.execute::<()>(&main).expect("Error in script");
-        Engine { interpreter: lua }
+        try!(lua.execute::<()>(&main));
+        Ok(Engine { interpreter: lua })
     }
 
     /// Call a given lua event with the given arguments.
