@@ -25,6 +25,7 @@ extern crate slab;
 
 pub mod net;
 pub mod script;
+pub mod test_util;
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};

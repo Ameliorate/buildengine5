@@ -5,6 +5,7 @@ use hlua::any::AnyLuaValue;
 use hlua::{LuaTable, function0};
 
 use super::*;
+use test_util;
 
 const EVENT: &'static str = include_str!("event.lua");
 const TEST: &'static str = include_str!("test.lua");
@@ -15,12 +16,14 @@ static CALL_FN_NO_ARGS_TEST_VAL: AtomicBool = AtomicBool::new(false);
 /// Call Engine.new without any code.
 #[test]
 fn engine_new_no_code() {
+    test_util::start_log_once();
     Engine::new(HashMap::new()).unwrap();
 }
 
 /// Tests requiring a module.
 #[test]
 fn load_module() {
+    test_util::start_log_once();
     let mut scripts: HashMap<String, String> = HashMap::new();
     scripts.insert("test".to_owned(), TEST.to_owned());
     scripts.insert("init".to_owned(), REQUIRE.to_owned());
@@ -30,6 +33,7 @@ fn load_module() {
 /// Tests declaring and raising a lua event.
 #[test]
 fn lua_event() {
+    test_util::start_log_once();
     let mut scripts: HashMap<String, String> = HashMap::new();
     scripts.insert("init".to_owned(), EVENT.to_owned());
     let mut engine = Engine::new(scripts).unwrap();
@@ -43,6 +47,7 @@ fn lua_event() {
 /// Curently broken until tomaka/hlua#66
 #[test]
 fn call_fn_no_args() {
+    test_util::start_log_once();
     let mut engine = Engine::new(HashMap::new()).unwrap();
     let fun = function0(|| {
         CALL_FN_NO_ARGS_TEST_VAL.store(true, Ordering::Relaxed);
