@@ -131,9 +131,6 @@ pub enum NetworkPacket {
     },
     /// An error that should crash the game and show an error to the user, but only on a client.
     Error(NetworkError),
-    /// Increments a value internally. It's supposed to be used for unit testing.
-    #[cfg(test)]
-    Test(test::TestValToModify),
 }
 
 /// Parses a str to a SocketAddr.
@@ -156,11 +153,13 @@ pub fn ip(ip_addr: &str) -> SocketAddr {
     ip
 }
 
+#[allow(unused)]    // TODO: Remove allow(unused).
 fn deserialize_packet(to_de: &[u8]) -> Result<NetworkPacket, DeserializeError> {
     deserialize(to_de)
 }
 
 /// Returns the length of a given packet, or a None if the first four bytes do not match NET_MAGIC_NUMBER.
+#[allow(unused)]
 fn get_packet_length(to_ln: [u8; 6]) -> Option<u16> {
     let (first_four, next_two) = to_ln.split_at(4);
     let should_be_magic_num = LittleEndian::read_u32(&first_four);
@@ -171,6 +170,7 @@ fn get_packet_length(to_ln: [u8; 6]) -> Option<u16> {
     Some(length)
 }
 
+#[allow(unused)]
 fn seralize_packet(to_ser: &NetworkPacket) -> Vec<u8> {
     let mut result: Vec<u8> = Vec::new();
     result.write_u32::<LittleEndian>(NET_MAGIC_NUMBER).unwrap();   // No possible errors here.
