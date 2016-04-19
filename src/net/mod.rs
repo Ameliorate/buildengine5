@@ -23,7 +23,7 @@ pub const NET_MAGIC_NUMBER: u32 = 0xCB011043; //0xcafebade + 0x25565, because pr
 
 /// Represents the network state and provides various utilities acting upon it.
 #[allow(missing_debug_implementations)]
-pub struct NetHandle(Sender<()>);
+pub struct NetHandle(Sender<NetAction>);
 
 impl NetHandle {
     /// Construct a new instance, starting a new coroutine and opening all network traffic on the spesified port.
@@ -35,7 +35,7 @@ impl NetHandle {
     pub fn new_tattle(tattle_closure_start: Option<Tattle>,
                       tattle_shutdown: Option<Tattle>)
                       -> Self {
-        let (tx, rx) = channel::<()>(); // TODO: Maybe have more possible messages than () to shutdown?
+        let (tx, rx) = channel::<NetAction>();
         mioco::spawn(move || {
             if let Some(tattle) = tattle_closure_start {
                 tattle.call();
@@ -43,12 +43,16 @@ impl NetHandle {
             loop {
                 select!(
                     rx:r => {
-                        if let Some(tattle) = tattle_shutdown {
-                            tattle.call();
+                        use net::NetAction::*;
+                        match rx.recv().expect("Channel to net coroutine improperly closed") {
+                            Shutdown => {
+                                if let Some(tattle) = tattle_shutdown {
+                                    tattle.call();
+                                }
+                                debug!("Shutting down coroutine");
+                                break;
+                            }
                         }
-                        debug!("Shutting down coroutine");
-                        let _ = rx.recv();
-                        break;
                     },
                 );
             }
@@ -57,9 +61,18 @@ impl NetHandle {
     }
 
     /// Shuts down the socket/listener, closing all connections.
-    pub fn shutdown(&self) -> Result<(), SendError<()>> {
-        self.0.send(())
+    pub fn shutdown(&self) -> Result<(), SendError<NetAction>> {
+        self.0.send(NetAction::Shutdown)
     }
+}
+
+/// Represents all the possible actions inside a network coroutine.
+///
+/// Maps mostly 1:1 with the interface of NetHandle.
+#[derive(Clone, Copy, Debug)]
+pub enum NetAction {
+    /// Kill the coroutine, and any open connections.
+    Shutdown,
 }
 
 /// Sent in the case of an error that should be sent to the peer.
