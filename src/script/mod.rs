@@ -127,9 +127,15 @@ pub enum ExecEventError {
 impl Display for ExecEventError {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), fmt::Error> {
         match *self {
-            ExecEventError::EngineStdNotImported => write!(fmt, "The standard library for the engine \
-                                                                 was not imported while trying to execute an event"),
-            ExecEventError::LuaError(ref _err) => write!(fmt, "An unknown lua error occoured while executing an event."),
+            ExecEventError::EngineStdNotImported => {
+                write!(fmt,
+                       "The standard library for the engine was not imported while trying to \
+                        execute an event")
+            }
+            ExecEventError::LuaError(ref _err) => {
+                write!(fmt,
+                       "An unknown lua error occoured while executing an event.")
+            }
         }
     }
 }
@@ -137,9 +143,13 @@ impl Display for ExecEventError {
 impl Error for ExecEventError {
     fn description(&self) -> &str {
         match *self {
-            ExecEventError::EngineStdNotImported => "The standard library for the engine \
-                                                     was not imported while trying to execute an event",
-            ExecEventError::LuaError(ref _err) => "An unknown lua error occoured while executing an event.",
+            ExecEventError::EngineStdNotImported => {
+                "The standard library for the engine was not imported while trying to execute an \
+                 event"
+            }
+            ExecEventError::LuaError(ref _err) => {
+                "An unknown lua error occoured while executing an event."
+            }
         }
     }
 }

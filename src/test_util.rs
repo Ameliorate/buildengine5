@@ -38,7 +38,8 @@ impl Tattle {
     ///
     /// If the value changed, true is returned, else false.
     pub fn changed<F>(&self, closure: F) -> bool
-        where F: FnOnce() {
+        where F: FnOnce()
+    {
         let old = self.get();
         closure();
         let new = self.get();

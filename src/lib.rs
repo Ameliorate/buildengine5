@@ -49,17 +49,15 @@ static SHOULD_CRASH: AtomicBool = AtomicBool::new(true);    // Basically Erlang'
 /// You probably, however don't want to mutate the state directly. That can mess up client-server syncronization.
 #[derive(Debug)]
 pub struct Engine<'be> {
-    /*
-    /// The clientside or serverside networking state.
-    ///
-    /// Currently a Some if it is a client, or None if server.
-    pub net_state: Option<Client>,
-
-    /// The networking event loop. Mostly used in other functions for sending, adding, and killing connections.
-    ///
-    /// Also contains all state relating to networking.
-    pub event_loop: Box<EventLoop>,*/
-
+    // The clientside or serverside networking state.
+    //
+    // Currently a Some if it is a client, or None if server.
+    // pub net_state: Option<Client>,
+    //
+    // The networking event loop. Mostly used in other functions for sending, adding, and killing connections.
+    //
+    // Also contains all state relating to networking.
+    // pub event_loop: Box<EventLoop>,
     /// The scripting backend for the engine.
     ///
     /// Not present on a client, for security reasons.
@@ -69,9 +67,9 @@ pub struct Engine<'be> {
 impl<'be> Engine<'be> {
     /// Creates a new client game.
     pub fn new_client(_server_address: SocketAddr) -> Result<Self, InitError> {
-        Ok(Engine {/*
-            event_loop: Box::new(event_loop),
-            net_state: Some(client),*/
+        Ok(Engine {
+            // event_loop: Box::new(event_loop),
+            // net_state: Some(client),
             script_engine: None,
         })
     }
@@ -80,9 +78,9 @@ impl<'be> Engine<'be> {
     pub fn new_server(_server_address: &SocketAddr,
                       game_scripts: HashMap<String, String>)
                       -> Result<Self, InitError> {
-        Ok(Engine {/*
-            event_loop: Box::new(event_loop),
-            net_state: None,*/
+        Ok(Engine {
+            // event_loop: Box::new(event_loop),
+            // net_state: None,
             script_engine: Some(try!(script::Engine::new(game_scripts))),
         })
     }
@@ -90,9 +88,9 @@ impl<'be> Engine<'be> {
 
 /// An error hapened while initing the game.
 #[derive(Debug)]
-pub enum InitError {/*
-    /// An error occoured when initalising the client code.
-    ClientInitError(client::InitError),*/
+pub enum InitError {
+    // An error occoured when initalising the client code.
+    // ClientInitError(client::InitError),
     /// An std::io::Error. Who knows where this comes up.
     IoError(io::Error),
     /// An error occoured from an error in lua code passed to the script engine.
@@ -102,7 +100,7 @@ pub enum InitError {/*
 impl Display for InitError {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), FmtError> {
         match *self {
-            //InitError::ClientInitError(ref err) => write!(fmt, "ClientInitError: {}", err),
+            // InitError::ClientInitError(ref err) => write!(fmt, "ClientInitError: {}", err),
             InitError::IoError(ref err) => write!(fmt, "IoError: {}", err),
             InitError::ScriptError(ref err) => write!(fmt, "ScriptError: {:?}", err),
         }
@@ -112,7 +110,7 @@ impl Display for InitError {
 impl Error for InitError {
     fn description(&self) -> &str {
         match *self {
-            //InitError::ClientInitError(ref err) => err.description(),
+            // InitError::ClientInitError(ref err) => err.description(),
             InitError::IoError(ref err) => err.description(),
             InitError::ScriptError(ref _err) => "an unknown lua error occoured",
         }
@@ -120,24 +118,23 @@ impl Error for InitError {
 
     fn cause(&self) -> Option<&Error> {
         match *self {
-            //InitError::ClientInitError(ref err) => Some(err),
+            // InitError::ClientInitError(ref err) => Some(err),
             InitError::IoError(ref err) => Some(err),
             InitError::ScriptError(ref _err) => None,
         }
     }
 }
-/*
-impl From<client::InitError> for InitError {
-    fn from(err: client::InitError) -> Self {
-        InitError::ClientInitError(err)
-    }
-}
-
-impl From<io::Error> for InitError {
-    fn from(err: io::Error) -> Self {
-        InitError::IoError(err)
-    }
-}*/
+// impl From<client::InitError> for InitError {
+// fn from(err: client::InitError) -> Self {
+// InitError::ClientInitError(err)
+// }
+// }
+//
+// impl From<io::Error> for InitError {
+// fn from(err: io::Error) -> Self {
+// InitError::IoError(err)
+// }
+// }
 
 impl From<hlua::LuaError> for InitError {
     fn from(err: hlua::LuaError) -> Self {

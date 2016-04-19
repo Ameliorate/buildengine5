@@ -21,7 +21,9 @@ impl NetHandle {
     }
 
     /// Constructs, with several optional structs that use global state for easier unit testing.
-    pub fn new_tattle(tattle_closure_start: Option<Tattle>, tattle_shutdown: Option<Tattle>) -> Self {
+    pub fn new_tattle(tattle_closure_start: Option<Tattle>,
+                      tattle_shutdown: Option<Tattle>)
+                      -> Self {
         let (tx, rx) = channel::<()>(); // TODO: Maybe have more possible messages than () to shutdown?
         mioco::spawn(move || {
             if let Some(tattle) = tattle_closure_start {
