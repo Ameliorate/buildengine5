@@ -35,7 +35,7 @@ use std::io;
 use std::net::SocketAddr;
 
 /// The current version of buildengine. Fallows Semantic Versioning.
-pub const VERSION: &'static str = "0.0.1";
+pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 /// If the game is allowed to crash in the event of a semi-handleable error, such as a bad network packet or a peer crashing.
 ///
