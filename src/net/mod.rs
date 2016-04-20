@@ -44,12 +44,12 @@ impl NetHandle {
                 select!(
                     rx:r => {
                         use net::NetAction::*;
-                        match rx.recv().expect("Channel to net coroutine improperly closed") {
+                        match rx.recv().expect("channel to net coroutine improperly closed") {
                             Shutdown => {
                                 if let Some(tattle) = tattle_shutdown {
                                     tattle.call();
                                 }
-                                debug!("Shutting down coroutine");
+                                debug!("shutting down coroutine");
                                 break;
                             }
                         }
@@ -155,13 +155,13 @@ pub enum NetworkPacket {
 /// * Calling with an ip address that resolves to more than 1 ip address.
 pub fn ip(ip_addr: &str) -> SocketAddr {
     if ip_addr.starts_with("localhost") {
-        panic!("Because localhost can resolve to both 127.0.0.1, and the vairous IPV6 versions \
-                of 127.0.0.1, it may not be used. Please instead use 127.0.0.1");
+        panic!("because localhost can resolve to both 127.0.0.1, and the various IPV6 versions \
+                of 127.0.0.1, it may not be used. please instead use 127.0.0.1");
     }
     let mut iter = ip_addr.to_socket_addrs().unwrap();
     let ip = iter.next().unwrap();
     if iter.next() != None {
-        panic!("The given ip to net::ip() resolved to more than 1 SocketAddr");
+        panic!("the given ip to net::ip() resolved to more than 1 SocketAddr");
     }
     ip
 }

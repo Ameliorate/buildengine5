@@ -149,7 +149,7 @@ impl From<hlua::LuaError> for InitError {
 /// #Panics
 /// * Calling the function once it has already been called.
 pub fn global_init() {
-    env_logger::init().expect("Already inited the logging server!");
+    env_logger::init().expect("already inited the logging server");
 }
 
 /// Prints "Hello World!" to stdout. Will be removed in future versions.

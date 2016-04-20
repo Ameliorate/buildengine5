@@ -36,12 +36,12 @@ impl<'lua> Engine<'lua> {
         scripts.insert("buildengine".to_owned(), ENGINE_STD.to_owned());
         let mut lua = Lua::new();
         lua.openlibs();
-        lua.execute::<()>(PRELUDE).expect("Error in prelude module of engine");
+        lua.execute::<()>(PRELUDE).expect("error in prelude module of engine");
         let mut main = "".to_owned();
         {
             // Set up module table.
             let mut prelude_table: LuaTable<_> = lua.get("prelude_buildengine")
-                                                    .expect("Loaded prelude but \
+                                                    .expect("loaded prelude but \
                                                              prelude_buildengine table was not \
                                                              found");
             let mut modules = prelude_table.empty_array("modules");
@@ -71,8 +71,8 @@ impl<'lua> Engine<'lua> {
         {
             let mut prelude_table: LuaTable<_> = self.interpreter
                                                      .get("prelude_buildengine")
-                                                     .expect("The prelude_table wasn't found. \
-                                                              Was the prelude properly loaded?");
+                                                     .expect("the prelude_table wasn't found. \
+                                                              was the prelude properly loaded?");
             let a_event: Option<_> = prelude_table.get::<LuaFunction<_>, _>("activate_event");
             if a_event.is_none() {
                 return Err(ExecEventError::EngineStdNotImported);
@@ -92,7 +92,7 @@ impl<'lua> Engine<'lua> {
                            -> Result<Option<AnyLuaValue>, LuaError> {
         let mut prelude_table: LuaTable<_> = self.interpreter
                                                  .get("prelude_buildengine")
-                                                 .expect("The prelude_table wasn't found. Was \
+                                                 .expect("the prelude_table wasn't found. was \
                                                           the prelude properly loaded?");
         prelude_table.set("fn_to_call", fn_to_call);
         prelude_table.set("args", args);
@@ -100,7 +100,7 @@ impl<'lua> Engine<'lua> {
             let mut call_fn_lua: LuaFunction<_> = prelude_table.get("call_prelude_fn")
                                                                .expect("prelude_buildengine.\
                                                                         call_prelude_fn not \
-                                                                        found. Was the prelude \
+                                                                        found. was the prelude \
                                                                         properly loaded?");
             try!(call_fn_lua.call::<()>());
         }
@@ -129,12 +129,12 @@ impl Display for ExecEventError {
         match *self {
             ExecEventError::EngineStdNotImported => {
                 write!(fmt,
-                       "The standard library for the engine was not imported while trying to \
+                       "the standard library for the engine was not imported while trying to \
                         execute an event")
             }
-            ExecEventError::LuaError(ref _err) => {
+            ExecEventError::LuaError(ref err) => {
                 write!(fmt,
-                       "An unknown lua error occoured while executing an event.")
+                       "an unknown lua error occoured while executing an event: {:?}", err)
             }
         }
     }
@@ -144,11 +144,11 @@ impl Error for ExecEventError {
     fn description(&self) -> &str {
         match *self {
             ExecEventError::EngineStdNotImported => {
-                "The standard library for the engine was not imported while trying to execute an \
+                "the standard library for the engine was not imported while trying to execute an \
                  event"
             }
             ExecEventError::LuaError(ref _err) => {
-                "An unknown lua error occoured while executing an event."
+                "an unknown lua error occoured while executing an event."
             }
         }
     }
@@ -165,14 +165,14 @@ pub fn any_lua_to_vec(any: AnyLuaValue) -> Vec<AnyLuaValue> {
     let as_array = match any {
         AnyLuaValue::LuaArray(arr) => arr, // Ye a pirate!
         AnyLuaValue::LuaOther => return Vec::new(), // Basically only nil passes through here.
-        _ => panic!("Called any_lua_to_vec on a non-array lua value: {:?}", any),
+        _ => panic!("called any_lua_to_vec on a non-array lua value: {:?}", any),
     };
     let mut vec: Vec<AnyLuaValue> = Vec::new();
     for value in as_array {
         let (index, value) = value;
         let index = match index {
             AnyLuaValue::LuaNumber(num) => num,
-            _ => panic!("Called any_lua_to_vec on array with non-number indexes"),
+            _ => panic!("called any_lua_to_vec on array with non-number indexes"),
         };
         let index = index as usize;
         vec.insert(index, value);

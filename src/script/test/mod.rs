@@ -37,7 +37,7 @@ fn lua_event() {
     let mut scripts: HashMap<String, String> = HashMap::new();
     scripts.insert("init".to_owned(), EVENT.to_owned());
     let mut engine = Engine::new(scripts).unwrap();
-    let _ = engine.exec_event("test".to_owned(), Vec::new()).expect("Failed to exec event");
+    let _ = engine.exec_event("test".to_owned(), Vec::new()).expect("failed to exec event");
     let test_val: AnyLuaValue = engine.interpreter.get("test_val").unwrap();
     assert_eq!(test_val, AnyLuaValue::LuaBoolean(true));
 }
@@ -55,10 +55,10 @@ fn call_fn_no_args() {
     {
         let mut prelude_table: LuaTable<_> = engine.interpreter
                                                    .get("prelude_buildengine")
-                                                   .expect("Failed to get prelude table.");
+                                                   .expect("failed to get prelude table.");
         prelude_table.set("test_fn", fun);
     }
-    let result = engine.call_prelude_fn("test_fn", Vec::new()).expect("Failed to call test_fn");
+    let result = engine.call_prelude_fn("test_fn", Vec::new()).expect("failed to call test_fn");
     assert!(result.is_none(),
             "Engine::call_prelude_fn returned a Some value for a function returning nil: {:?}",
             result);
