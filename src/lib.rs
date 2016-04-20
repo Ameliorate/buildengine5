@@ -20,6 +20,7 @@ extern crate byteorder;
 extern crate either;
 extern crate env_logger;
 extern crate hlua;
+extern crate mio;
 extern crate serde;
 extern crate slab;
 

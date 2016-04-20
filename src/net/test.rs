@@ -1,3 +1,6 @@
+use mio::tcp::TcpListener;
+use mioco::MioAdapter;
+
 use super::*;
 use test_util;
 use test_util::Tattle;
@@ -6,8 +9,9 @@ use test_util::Tattle;
 fn nethandle_new() {
     test_util::start_log_once();
     let tattle = Tattle::new();
+    let listener = MioAdapter::new(TcpListener::bind(&ip("0.0.0.0:0")).unwrap());
     assert!(tattle.changed(|| {
-        NetHandle::new_tattle(Some(tattle.clone()), None);
+        NetHandle::new_tattle_server(Some(tattle.clone()), None, listener);
     }));
 }
 
@@ -15,7 +19,8 @@ fn nethandle_new() {
 fn nethandle_shutdown() {
     test_util::start_log_once();
     let tattle = Tattle::new();
-    let h = NetHandle::new_tattle(None, Some(tattle.clone()));
+    let listener = MioAdapter::new(TcpListener::bind(&ip("0.0.0.0:0")).unwrap());
+    let h = NetHandle::new_tattle_server(None, Some(tattle.clone()), listener);
     assert!(tattle.changed(|| {
         h.shutdown().unwrap();
     }))

@@ -13,13 +13,21 @@ use bincode::serde::{DeserializeError, deserialize, serialize};
 use bincode::SizeLimit;
 use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
 use mioco;
-use mioco::sync::mpsc::{Sender, channel};
+use mioco::sync::mpsc::{Sender, Receiver, channel};
+use mioco::tcp::{TcpListener, TcpStream};
+use slab::Slab;
 
 use test_util::Tattle;
 
 /// Standard number to ensure network connections are syncronized and the same protocol is being used.
+///
 /// Reexported incase it is of use for something not-networking.
 pub const NET_MAGIC_NUMBER: u32 = 0xCB011043; //0xcafebade + 0x25565, because programming references.
+
+/// The maximum number of clients allowed to be connected at one time.
+///
+/// Eventually this should be removed and replaced with something configurable.
+pub const MAX_CONNECTED_CLIENTS: usize = 30;
 
 /// Represents the network state and provides various utilities acting upon it.
 #[allow(missing_debug_implementations)]
@@ -27,15 +35,17 @@ pub struct NetHandle(Sender<NetAction>);
 
 impl NetHandle {
     /// Construct a new instance, starting a new coroutine and opening all network traffic on the spesified port.
-    pub fn new() -> Self {
-        NetHandle::new_tattle(None, None)
+    pub fn new_server(listener: TcpListener) -> Self {
+        NetHandle::new_tattle_server(None, None, listener)
     }
 
     /// Constructs, with several optional structs that use global state for easier unit testing.
-    pub fn new_tattle(tattle_closure_start: Option<Tattle>,
-                      tattle_shutdown: Option<Tattle>)
+    pub fn new_tattle_server(tattle_closure_start: Option<Tattle>,
+                      tattle_shutdown: Option<Tattle>,
+                      listener: TcpListener)
                       -> Self {
         let (tx, rx) = channel::<NetAction>();
+        let mut clients: Slab<Sender<NetAction>, usize> = Slab::new(MAX_CONNECTED_CLIENTS);
         mioco::spawn(move || {
             if let Some(tattle) = tattle_closure_start {
                 tattle.call();
@@ -50,8 +60,29 @@ impl NetHandle {
                                     tattle.call();
                                 }
                                 debug!("shutting down coroutine");
+                                for client_tx in clients.iter() {
+                                    let _ = client_tx.send(Shutdown);
+                                }
                                 break;
                             }
+                        }
+                    },
+                    listener:r => {
+                        match listener.try_accept() {
+                            Ok(Some(peer)) => {
+                                let (client_tx, client_rx) = channel::<NetAction>();
+                                let id = match clients.insert(client_tx) {
+                                    Ok(id) => id,
+                                    Err(_client_tx) => {
+                                        info!("Client attempted to connect but the maximum number of connections was reached.");
+                                        continue
+                                    }
+                                };
+                                info!("Client {} connected", id);
+                                mioco::spawn(move || check_stream(peer, client_rx));
+                            }
+                            Ok(None) => {}
+                            Err(err) => panic!("io::Error when accepting connections in server net loop: {}", err),
                         }
                     },
                 );
@@ -164,6 +195,10 @@ pub fn ip(ip_addr: &str) -> SocketAddr {
         panic!("the given ip to net::ip() resolved to more than 1 SocketAddr");
     }
     ip
+}
+
+fn check_stream(_stream: TcpStream, _receiver: Receiver<NetAction>) {
+    unimplemented!()
 }
 
 #[allow(unused)]    // TODO: Remove allow(unused).
