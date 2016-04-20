@@ -164,7 +164,6 @@ impl From<LuaError> for ExecEventError {
 pub fn any_lua_to_vec(any: AnyLuaValue) -> Vec<AnyLuaValue> {
     let as_array = match any {
         AnyLuaValue::LuaArray(arr) => arr, // Ye a pirate!
-        AnyLuaValue::LuaOther => return Vec::new(), // Basically only nil passes through here.
         _ => panic!("called any_lua_to_vec on a non-array lua value: {:?}", any),
     };
     let mut vec: Vec<AnyLuaValue> = Vec::new();
