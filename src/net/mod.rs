@@ -6,14 +6,15 @@ mod test;
 use std::error::Error;
 use std::fmt;
 use std::fmt::{Display, Formatter};
+use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
-use std::sync::mpsc::SendError;
+use std::sync::mpsc::{SendError, TryRecvError};
 
 use bincode::serde::{DeserializeError, deserialize, serialize};
 use bincode::SizeLimit;
 use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
 use mioco;
-use mioco::sync::mpsc::{Sender, Receiver, channel};
+use mioco::sync::mpsc::{Receiver, Sender, channel};
 use mioco::tcp::{TcpListener, TcpStream};
 use slab::Slab;
 
@@ -41,9 +42,9 @@ impl NetHandle {
 
     /// Constructs, with several optional structs that use global state for easier unit testing.
     pub fn new_tattle_server(tattle_closure_start: Option<Tattle>,
-                      tattle_shutdown: Option<Tattle>,
-                      listener: TcpListener)
-                      -> Self {
+                             tattle_shutdown: Option<Tattle>,
+                             listener: TcpListener)
+                             -> Self {
         let (tx, rx) = channel::<NetAction>();
         let mut clients: Slab<Sender<NetAction>, usize> = Slab::new(MAX_CONNECTED_CLIENTS);
         mioco::spawn(move || {
@@ -79,7 +80,7 @@ impl NetHandle {
                                     }
                                 };
                                 info!("Client {} connected", id);
-                                mioco::spawn(move || check_stream(peer, client_rx));
+                                mioco::spawn(move || check_stream(peer, client_rx, id));
                             }
                             Ok(None) => {}
                             Err(err) => panic!("io::Error when accepting connections in server net loop: {}", err),
@@ -197,8 +198,42 @@ pub fn ip(ip_addr: &str) -> SocketAddr {
     ip
 }
 
-fn check_stream(_stream: TcpStream, _receiver: Receiver<NetAction>) {
-    unimplemented!()
+fn check_stream(mut stream: TcpStream, receiver: Receiver<NetAction>, id: usize) {
+    let mut send_queue: Vec<NetworkPacket> = Vec::new();
+    loop {
+        select!(
+            receiver:r => {
+                use net::NetAction::*;
+                match receiver.try_recv() {
+                    Ok(Shutdown) => {
+                        info!("Shutting down client at with id {}", id);
+                        break;
+                    }
+                    Err(TryRecvError::Empty) => {}
+                    Err(TryRecvError::Disconnected) => {
+                        info!("Shutting down client at with id {}", id);
+                        debug!("shutting down client {} due to disconnected channel", id);
+                        break;
+                    }
+                }
+            },
+            stream:r => {
+
+            },
+            stream:w => {
+                let send_queue_old = send_queue;
+                send_queue = Vec::new();
+                for packet in send_queue_old {
+                    match send_to_stream(&mut stream, &packet) {
+                        Ok(Some(_len)) => {}
+                        Ok(None) => send_queue.push(packet),
+                        Err(err) => panic!("got io::Error writing packet to stream to client {}. packet: {:?}, err: {}",
+                                            id, packet, err),
+                    }
+                }
+            },
+        );
+    }
 }
 
 #[allow(unused)]    // TODO: Remove allow(unused).
@@ -216,6 +251,13 @@ fn get_packet_length(to_ln: [u8; 6]) -> Option<u16> {
     }
     let length = LittleEndian::read_u16(&next_two);
     Some(length)
+}
+
+fn send_to_stream(stream: &mut TcpStream,
+                  packet: &NetworkPacket)
+                  -> Result<Option<usize>, io::Error> {
+    let ser = seralize_packet(&packet);
+    stream.try_write(&ser)
 }
 
 #[allow(unused)]

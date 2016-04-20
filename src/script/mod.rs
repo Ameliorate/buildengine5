@@ -134,7 +134,8 @@ impl Display for ExecEventError {
             }
             ExecEventError::LuaError(ref err) => {
                 write!(fmt,
-                       "an unknown lua error occoured while executing an event: {:?}", err)
+                       "an unknown lua error occoured while executing an event: {:?}",
+                       err)
             }
         }
     }
