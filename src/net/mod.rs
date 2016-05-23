@@ -6,19 +6,11 @@ mod test;
 use std::error::Error;
 use std::fmt;
 use std::fmt::{Display, Formatter};
-use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
-use std::sync::mpsc::{SendError, TryRecvError};
 
 use bincode::serde::{DeserializeError, deserialize, serialize};
 use bincode::SizeLimit;
 use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
-use mioco;
-use mioco::sync::mpsc::{Receiver, Sender, channel};
-use mioco::tcp::{TcpListener, TcpStream};
-use slab::Slab;
-
-use test_util::Tattle;
 
 /// Standard number to ensure network connections are syncronized and the same protocol is being used.
 ///
@@ -29,83 +21,6 @@ pub const NET_MAGIC_NUMBER: u32 = 0xCB011043; //0xcafebade + 0x25565, because pr
 ///
 /// Eventually this should be removed and replaced with something configurable.
 pub const MAX_CONNECTED_CLIENTS: usize = 30;
-
-/// Represents the network state and provides various utilities acting upon it.
-#[allow(missing_debug_implementations)]
-pub struct NetHandle(Sender<NetAction>);
-
-impl NetHandle {
-    /// Construct a new instance, starting a new coroutine and opening all network traffic on the spesified port.
-    pub fn new_server(listener: TcpListener) -> Self {
-        NetHandle::new_tattle_server(None, None, listener)
-    }
-
-    /// Constructs, with several optional structs that use global state for easier unit testing.
-    pub fn new_tattle_server(tattle_closure_start: Option<Tattle>,
-                             tattle_shutdown: Option<Tattle>,
-                             listener: TcpListener)
-                             -> Self {
-        let (tx, rx) = channel::<NetAction>();
-        let mut clients: Slab<Sender<NetAction>, usize> = Slab::new(MAX_CONNECTED_CLIENTS);
-        mioco::spawn(move || {
-            if let Some(tattle) = tattle_closure_start {
-                tattle.call();
-            }
-            loop {
-                select!(
-                    rx:r => {
-                        use net::NetAction::*;
-                        match rx.recv().expect("channel to net coroutine improperly closed") {
-                            Shutdown => {
-                                if let Some(tattle) = tattle_shutdown {
-                                    tattle.call();
-                                }
-                                debug!("shutting down coroutine");
-                                for client_tx in clients.iter() {
-                                    let _ = client_tx.send(Shutdown);
-                                }
-                                break;
-                            }
-                        }
-                    },
-                    listener:r => {
-                        match listener.try_accept() {
-                            Ok(Some(peer)) => {
-                                let (client_tx, client_rx) = channel::<NetAction>();
-                                let id = match clients.insert(client_tx) {
-                                    Ok(id) => id,
-                                    Err(_client_tx) => {
-                                        info!("Client attempted to connect but the maximum number of connections was reached.");
-                                        continue
-                                    }
-                                };
-                                info!("Client {} connected", id);
-                                mioco::spawn(move || check_stream(peer, client_rx, id));
-                            }
-                            Ok(None) => {}
-                            Err(err) => panic!("io::Error when accepting connections in server net loop: {}", err),
-                        }
-                    },
-                );
-            }
-        });
-        NetHandle(tx)
-    }
-
-    /// Shuts down the socket/listener, closing all connections.
-    pub fn shutdown(&self) -> Result<(), SendError<NetAction>> {
-        self.0.send(NetAction::Shutdown)
-    }
-}
-
-/// Represents all the possible actions inside a network coroutine.
-///
-/// Maps mostly 1:1 with the interface of NetHandle.
-#[derive(Clone, Copy, Debug)]
-pub enum NetAction {
-    /// Kill the coroutine, and any open connections.
-    Shutdown,
-}
 
 /// Sent in the case of an error that should be sent to the peer.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -198,44 +113,6 @@ pub fn ip(ip_addr: &str) -> SocketAddr {
     ip
 }
 
-fn check_stream(mut stream: TcpStream, receiver: Receiver<NetAction>, id: usize) {
-    let mut send_queue: Vec<NetworkPacket> = Vec::new();
-    loop {
-        select!(
-            receiver:r => {
-                use net::NetAction::*;
-                match receiver.try_recv() {
-                    Ok(Shutdown) => {
-                        info!("Shutting down client at with id {}", id);
-                        break;
-                    }
-                    Err(TryRecvError::Empty) => {}
-                    Err(TryRecvError::Disconnected) => {
-                        info!("Shutting down client at with id {}", id);
-                        debug!("shutting down client {} due to disconnected channel", id);
-                        break;
-                    }
-                }
-            },
-            stream:r => {
-
-            },
-            stream:w => {
-                let send_queue_old = send_queue;
-                send_queue = Vec::new();
-                for packet in send_queue_old {
-                    match send_to_stream(&mut stream, &packet) {
-                        Ok(Some(_len)) => {}
-                        Ok(None) => send_queue.push(packet),
-                        Err(err) => panic!("got io::Error writing packet to stream to client {}. packet: {:?}, err: {}",
-                                            id, packet, err),
-                    }
-                }
-            },
-        );
-    }
-}
-
 #[allow(unused)]    // TODO: Remove allow(unused).
 fn deserialize_packet(to_de: &[u8]) -> Result<NetworkPacket, DeserializeError> {
     deserialize(to_de)
@@ -251,13 +128,6 @@ fn get_packet_length(to_ln: [u8; 6]) -> Option<u16> {
     }
     let length = LittleEndian::read_u16(&next_two);
     Some(length)
-}
-
-fn send_to_stream(stream: &mut TcpStream,
-                  packet: &NetworkPacket)
-                  -> Result<Option<usize>, io::Error> {
-    let ser = seralize_packet(&packet);
-    stream.try_write(&ser)
 }
 
 #[allow(unused)]
