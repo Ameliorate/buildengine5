@@ -1,7 +1,6 @@
 #![feature(custom_derive, plugin, const_fn)]
 #![plugin(serde_macros)]
-#![deny(missing_docs,
-        missing_debug_implementations, missing_copy_implementations,
+#![deny(missing_debug_implementations, missing_copy_implementations,
         trivial_casts, trivial_numeric_casts,
         unused_import_braces, unused_qualifications,
         warnings)]
@@ -19,7 +18,6 @@ extern crate either;
 extern crate env_logger;
 extern crate hlua;
 extern crate serde;
-extern crate slab;
 
 pub mod net;
 pub mod script;

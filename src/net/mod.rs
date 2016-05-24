@@ -6,7 +6,9 @@ mod test;
 use std::error::Error;
 use std::fmt;
 use std::fmt::{Display, Formatter};
-use std::net::{SocketAddr, ToSocketAddrs};
+use std::io;
+use std::net::{SocketAddr, ToSocketAddrs, TcpListener, TcpStream};
+use std::thread;
 
 use bincode::serde::{DeserializeError, deserialize, serialize};
 use bincode::SizeLimit;
@@ -21,6 +23,42 @@ pub const NET_MAGIC_NUMBER: u32 = 0xCB011043; //0xcafebade + 0x25565, because pr
 ///
 /// Eventually this should be removed and replaced with something configurable.
 pub const MAX_CONNECTED_CLIENTS: usize = 30;
+
+#[derive(Debug)]
+/// Holds all state for networking.
+///
+/// Has no notion of client or server. A client can listen, if that would ever be useful.
+pub struct Controller {
+    pub listeners: Vec<TcpListener>,
+    pub connections: Vec<Connection>,
+}
+
+impl Controller {
+    /// Contructs a new Controller, without any connection or listeners.
+    pub fn new_empty() -> Controller {
+        Controller {
+            listeners: Vec::new(),
+            connections: Vec::new(),
+        }
+    }
+
+    /// Adds a new listener and spins up a new thread to check it.
+    pub fn add_listener_raw(&mut self, listener: TcpListener) -> Result<(), io::Error> {
+        let _listener_clone = try!(listener.try_clone());
+        thread::spawn(|| {
+            unimplemented!();   // TODO: Check listner_clone.
+        });
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+/// Represents a single connection without any notion of client or server.
+///
+/// It's own struct to allow for hooks and the like.
+pub struct Connection {
+    pub stream: TcpStream,
+}
 
 /// Sent in the case of an error that should be sent to the peer.
 #[derive(Clone, Debug, Serialize, Deserialize)]

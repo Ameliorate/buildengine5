@@ -22,7 +22,6 @@ lazy_static = "0.2.0"
 log = "0.3.6"
 serde = "0.7.0"
 serde_macros = "0.7.2"
-slab = "0.2.0"
 
 [lib]
 name = "buildengine5lib"
