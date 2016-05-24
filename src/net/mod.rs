@@ -9,6 +9,7 @@ use std::fmt::{Display, Formatter};
 use std::io;
 use std::net::{SocketAddr, ToSocketAddrs, TcpListener, TcpStream};
 use std::thread;
+use std::sync::mpsc::{channel, Sender};
 
 use bincode::serde::{DeserializeError, deserialize, serialize};
 use bincode::SizeLimit;
@@ -31,23 +32,36 @@ pub const MAX_CONNECTED_CLIENTS: usize = 30;
 pub struct Controller {
     pub listeners: Vec<TcpListener>,
     pub connections: Vec<Connection>,
+    pub tx: Sender<Message>,
 }
 
 impl Controller {
     /// Contructs a new Controller, without any connection or listeners.
+    ///
+    /// This spawns a new thread to check multithreading channels.
     pub fn new_empty() -> Controller {
+        let (tx, _rx) = channel::<Message>();
+        thread::spawn(|| {
+            unimplemented!();   // TODO: Check rx for stuff.
+        });
         Controller {
             listeners: Vec::new(),
             connections: Vec::new(),
+            tx: tx,
         }
     }
 
     /// Adds a new listener and spins up a new thread to check it.
-    pub fn add_listener_raw(&mut self, listener: TcpListener) -> Result<(), io::Error> {
-        let _listener_clone = try!(listener.try_clone());
+    ///
+    /// # Errors
+    /// * A call to `listener.try_clone()` failed for some reason.
+    pub fn add_listener(&mut self, listener: TcpListener) -> Result<(), io::Error> {
+        let listener_clone = try!(listener.try_clone());
+        let tx_clone = self.tx.clone();
         thread::spawn(|| {
-            unimplemented!();   // TODO: Check listner_clone.
+            check_listener(listener_clone, tx_clone);
         });
+        self.listeners.push(listener);
         Ok(())
     }
 }
@@ -131,6 +145,14 @@ pub enum NetworkPacket {
     Error(NetworkError),
 }
 
+
+/// Channel message sent to controller to dictate certain actions.
+#[derive(Debug)]
+pub enum Message {
+    /// Add a socket, spinning up a new thread in the process.
+    AddSocket(TcpStream, SocketAddr),
+}
+
 /// Parses a str to a SocketAddr.
 ///
 /// This is a function because while str implements ToSocketAddrs, it requires a good bit of boilerplate to use.
@@ -149,6 +171,24 @@ pub fn ip(ip_addr: &str) -> SocketAddr {
         panic!("the given ip to net::ip() resolved to more than 1 SocketAddr");
     }
     ip
+}
+
+fn check_listener(listener: TcpListener, channel: Sender<Message>) {
+    loop {
+        match listener.accept() {
+            Ok((stream, addr)) => {
+                match channel.send(Message::AddSocket(stream, addr)) {
+                    Ok(()) => {},
+                    Err(_err) => {
+                        debug!("listener {:?} stopped accepting because of channel close", listener);
+                        break
+                    },
+                }
+                // We don't spin up a new thread here, because AddSocket does it for us.
+            },
+            Err(err) => panic!("{}", err),  // TODO: Better handle errors.
+        }
+    }
 }
 
 #[allow(unused)]    // TODO: Remove allow(unused).
