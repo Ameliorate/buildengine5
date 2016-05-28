@@ -230,11 +230,15 @@ fn check_listener(listener: TcpListener, channel_: Sender<ControllerMessage>) {
     }
 }
 
-fn check_stream_send(rx: Receiver<ConnectionMessage>, stream: TcpStream) {
-    unimplemented!()
+fn check_stream_send(rx: Receiver<ConnectionMessage>, _stream: TcpStream) {
+    loop {
+        match rx.recv().unwrap() {
+            ConnectionMessage::DoNothing => {},
+        }
+    }
 }
 
-fn check_stream_recv(stream: TcpStream) {
+fn check_stream_recv(_stream: TcpStream) {
     unimplemented!()
 }
 
