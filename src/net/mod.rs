@@ -47,7 +47,7 @@ impl Controller {
         });
         let self_raw_clone = self_raw.clone();
         thread::spawn(move || {
-            check_channel(rx, self_raw_clone);
+            check_controller_channel(rx, self_raw_clone);
         });
         Controller {
             raw: self_raw
@@ -189,7 +189,7 @@ pub fn ip(ip_addr: &str) -> SocketAddr {
     ip
 }
 
-fn check_channel(rx: Receiver<ControllerMessage>, controller: Arc<ControllerRaw>) {
+fn check_controller_channel(rx: Receiver<ControllerMessage>, controller: Arc<ControllerRaw>) {
     loop {
         match rx.recv() {
             Ok(msg) => match msg {
@@ -220,18 +220,24 @@ fn check_listener(listener: TcpListener, channel_: Sender<ControllerMessage>) {
                         break
                     },
                 }
-                thread::spawn(|| {
-                    check_stream(rx, stream);
-                });
+                let stream_clone = stream.try_clone().unwrap();
+                thread::spawn(|| check_stream_send(rx, stream));
+                thread::spawn(|| check_stream_recv(stream_clone));
             },
             Err(err) => panic!("{}", err),  // TODO: Better handle errors.
         }
     }
 }
 
-fn check_stream(_rx: Receiver<ConnectionMessage>, _stream: TcpStream) {
+fn check_stream_send(rx: Receiver<ConnectionMessage>, stream: TcpStream) {
     unimplemented!()
 }
+
+fn check_stream_recv(stream: TcpStream) {
+    unimplemented!()
+}
+
+
 
 #[allow(unused)]    // TODO: Remove allow(unused).
 fn deserialize_packet(to_de: &[u8]) -> Result<NetworkPacket, DeserializeError> {
