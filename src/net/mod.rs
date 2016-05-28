@@ -41,7 +41,6 @@ impl Controller {
     pub fn new_empty() -> Controller {
         let (tx, rx) = channel::<ControllerMessage>();
         let self_raw = Arc::from(ControllerRaw {
-            listeners: Mutex::new(Vec::new()),
             connections: Mutex::new(Vec::new()),
             tx: Mutex::new(tx),
         });
@@ -56,6 +55,8 @@ impl Controller {
 
     /// Adds a new listener and spins up a new thread to check it.
     ///
+    /// The added listener can never be removed, due to the fact that the TcpListener lacks a shutdown method.
+    ///
     /// # Errors
     /// * A call to `listener.try_clone()` failed for some reason.
     pub fn add_listener(&mut self, listener: TcpListener) -> Result<(), io::Error> {
@@ -64,7 +65,6 @@ impl Controller {
         thread::spawn(|| {
             check_listener(listener_clone, tx_clone);
         });
-        self.raw.listeners.lock().unwrap().push(listener);
         Ok(())
     }
 }
@@ -72,7 +72,6 @@ impl Controller {
 /// Raw representation of a controller. Used internally for things.
 #[derive(Debug)]
 pub struct ControllerRaw {
-    pub listeners: Mutex<Vec<TcpListener>>,
     pub connections: Mutex<Vec<Connection>>,
     pub tx: Mutex<Sender<ControllerMessage>>,
 }
