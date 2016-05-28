@@ -7,10 +7,10 @@ use std::error::Error;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::io;
-use std::net::{SocketAddr, ToSocketAddrs, TcpListener, TcpStream};
+use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::thread;
 use std::sync::{Arc, Mutex};
-use std::sync::mpsc::{channel, Sender, Receiver};
+use std::sync::mpsc::{Receiver, Sender, channel};
 
 use bincode::serde::{DeserializeError, deserialize, serialize};
 use bincode::SizeLimit;
@@ -48,9 +48,7 @@ impl Controller {
         thread::spawn(move || {
             check_controller_channel(rx, self_raw_clone);
         });
-        Controller {
-            raw: self_raw
-        }
+        Controller { raw: self_raw }
     }
 
     /// Adds a new listener and spins up a new thread to check it.
@@ -191,17 +189,20 @@ pub fn ip(ip_addr: &str) -> SocketAddr {
 fn check_controller_channel(rx: Receiver<ControllerMessage>, controller: Arc<ControllerRaw>) {
     loop {
         match rx.recv() {
-            Ok(msg) => match msg {
-                ControllerMessage::AddSocket(tx_connection, _addr) => {
-                    // TODO: Add a hook allowing intersepting the addr and denying the connection.
-                    controller.connections.lock().unwrap().push(Connection {
-                        channel: Mutex::new(tx_connection),
-                    });
+            Ok(msg) => {
+                match msg {
+                    ControllerMessage::AddSocket(tx_connection, _addr) => {
+                        // TODO: Add a hook allowing intersepting the addr and denying the connection.
+                        controller.connections
+                                  .lock()
+                                  .unwrap()
+                                  .push(Connection { channel: Mutex::new(tx_connection) });
+                    }
                 }
-            },
+            }
             Err(_err) => {
                 debug!("Channel connected to controller disconnected");
-                break
+                break;
             }
         }
     }
@@ -213,16 +214,17 @@ fn check_listener(listener: TcpListener, channel_: Sender<ControllerMessage>) {
             Ok((stream, addr)) => {
                 let (tx, rx) = channel();
                 match channel_.send(ControllerMessage::AddSocket(tx, addr.to_string())) {
-                    Ok(()) => {},
+                    Ok(()) => {}
                     Err(_err) => {
-                        debug!("listener {:?} stopped accepting because of channel close", listener);
-                        break
-                    },
+                        debug!("listener {:?} stopped accepting because of channel close",
+                               listener);
+                        break;
+                    }
                 }
                 let stream_clone = stream.try_clone().unwrap();
                 thread::spawn(|| check_stream_send(rx, stream));
                 thread::spawn(|| check_stream_recv(stream_clone));
-            },
+            }
             Err(err) => panic!("{}", err),  // TODO: Better handle errors.
         }
     }
@@ -235,8 +237,6 @@ fn check_stream_send(rx: Receiver<ConnectionMessage>, stream: TcpStream) {
 fn check_stream_recv(stream: TcpStream) {
     unimplemented!()
 }
-
-
 
 #[allow(unused)]    // TODO: Remove allow(unused).
 fn deserialize_packet(to_de: &[u8]) -> Result<NetworkPacket, DeserializeError> {
