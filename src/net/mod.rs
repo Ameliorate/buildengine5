@@ -9,7 +9,7 @@ use std::fmt::{Display, Formatter};
 use std::io;
 use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::thread;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::sync::mpsc::{Receiver, Sender, channel};
 
 use bincode::serde::{DeserializeError, deserialize, serialize};
@@ -41,7 +41,7 @@ impl Controller {
     pub fn new_empty() -> Controller {
         let (tx, rx) = channel::<ControllerMessage>();
         let self_raw = Arc::from(ControllerRaw {
-            connections: Mutex::new(Vec::new()),
+            connections: RwLock::new(Vec::new()),
             tx: Mutex::new(tx),
         });
         let self_raw_clone = self_raw.clone();
@@ -70,7 +70,7 @@ impl Controller {
 /// Raw representation of a controller. Used internally for things.
 #[derive(Debug)]
 pub struct ControllerRaw {
-    pub connections: Mutex<Vec<Connection>>,
+    pub connections: RwLock<Vec<Connection>>,
     pub tx: Mutex<Sender<ControllerMessage>>,
 }
 
@@ -194,7 +194,7 @@ fn check_controller_channel(rx: Receiver<ControllerMessage>, controller: Arc<Con
                     ControllerMessage::AddSocket(tx_connection, _addr) => {
                         // TODO: Add a hook allowing intersepting the addr and denying the connection.
                         controller.connections
-                                  .lock()
+                                  .write()
                                   .unwrap()
                                   .push(Connection { channel: Mutex::new(tx_connection) });
                     }
