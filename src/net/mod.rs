@@ -9,7 +9,8 @@ use std::fmt::{Display, Formatter};
 use std::io;
 use std::net::{SocketAddr, ToSocketAddrs, TcpListener, TcpStream};
 use std::thread;
-use std::sync::mpsc::{channel, Sender};
+use std::sync::{Arc, Mutex};
+use std::sync::mpsc::{channel, Sender, Receiver};
 
 use bincode::serde::{DeserializeError, deserialize, serialize};
 use bincode::SizeLimit;
@@ -25,14 +26,12 @@ pub const NET_MAGIC_NUMBER: u32 = 0xCB011043; //0xcafebade + 0x25565, because pr
 /// Eventually this should be removed and replaced with something configurable.
 pub const MAX_CONNECTED_CLIENTS: usize = 30;
 
-#[derive(Debug)]
 /// Holds all state for networking.
 ///
 /// Has no notion of client or server. A client can listen, if that would ever be useful.
+#[derive(Debug, Clone)]
 pub struct Controller {
-    pub listeners: Vec<TcpListener>,
-    pub connections: Vec<Connection>,
-    pub tx: Sender<Message>,
+    pub raw: Arc<ControllerRaw>,
 }
 
 impl Controller {
@@ -40,14 +39,18 @@ impl Controller {
     ///
     /// This spawns a new thread to check multithreading channels.
     pub fn new_empty() -> Controller {
-        let (tx, _rx) = channel::<Message>();
-        thread::spawn(|| {
-            unimplemented!();   // TODO: Check rx for stuff.
+        let (tx, rx) = channel::<ControllerMessage>();
+        let self_raw = Arc::from(ControllerRaw {
+            listeners: Mutex::new(Vec::new()),
+            connections: Mutex::new(Vec::new()),
+            tx: Mutex::new(tx),
+        });
+        let self_raw_clone = self_raw.clone();
+        thread::spawn(move || {
+            check_channel(rx, self_raw_clone);
         });
         Controller {
-            listeners: Vec::new(),
-            connections: Vec::new(),
-            tx: tx,
+            raw: self_raw
         }
     }
 
@@ -57,13 +60,21 @@ impl Controller {
     /// * A call to `listener.try_clone()` failed for some reason.
     pub fn add_listener(&mut self, listener: TcpListener) -> Result<(), io::Error> {
         let listener_clone = try!(listener.try_clone());
-        let tx_clone = self.tx.clone();
+        let tx_clone = self.raw.tx.lock().unwrap().clone();
         thread::spawn(|| {
             check_listener(listener_clone, tx_clone);
         });
-        self.listeners.push(listener);
+        self.raw.listeners.lock().unwrap().push(listener);
         Ok(())
     }
+}
+
+/// Raw representation of a controller. Used internally for things.
+#[derive(Debug)]
+pub struct ControllerRaw {
+    pub listeners: Mutex<Vec<TcpListener>>,
+    pub connections: Mutex<Vec<Connection>>,
+    pub tx: Mutex<Sender<ControllerMessage>>,
 }
 
 #[derive(Debug)]
@@ -71,7 +82,7 @@ impl Controller {
 ///
 /// It's own struct to allow for hooks and the like.
 pub struct Connection {
-    pub stream: TcpStream,
+    pub channel: Mutex<Sender<ConnectionMessage>>,
 }
 
 /// Sent in the case of an error that should be sent to the peer.
@@ -145,12 +156,17 @@ pub enum NetworkPacket {
     Error(NetworkError),
 }
 
+/// Message sent to a connection to do vairous actions.
+#[derive(Debug, Clone, Copy)]
+pub enum ConnectionMessage {
+    DoNothing,
+}
 
 /// Channel message sent to controller to dictate certain actions.
-#[derive(Debug)]
-pub enum Message {
+#[derive(Debug, Clone)]
+pub enum ControllerMessage {
     /// Add a socket, spinning up a new thread in the process.
-    AddSocket(TcpStream, SocketAddr),
+    AddSocket(Sender<ConnectionMessage>, String),
 }
 
 /// Parses a str to a SocketAddr.
@@ -173,22 +189,48 @@ pub fn ip(ip_addr: &str) -> SocketAddr {
     ip
 }
 
-fn check_listener(listener: TcpListener, channel: Sender<Message>) {
+fn check_channel(rx: Receiver<ControllerMessage>, controller: Arc<ControllerRaw>) {
+    loop {
+        match rx.recv() {
+            Ok(msg) => match msg {
+                ControllerMessage::AddSocket(tx_connection, _addr) => {
+                    // TODO: Add a hook allowing intersepting the addr and denying the connection.
+                    controller.connections.lock().unwrap().push(Connection {
+                        channel: Mutex::new(tx_connection),
+                    });
+                }
+            },
+            Err(_err) => {
+                debug!("Channel connected to controller disconnected");
+                break
+            }
+        }
+    }
+}
+
+fn check_listener(listener: TcpListener, channel_: Sender<ControllerMessage>) {
     loop {
         match listener.accept() {
             Ok((stream, addr)) => {
-                match channel.send(Message::AddSocket(stream, addr)) {
+                let (tx, rx) = channel();
+                match channel_.send(ControllerMessage::AddSocket(tx, addr.to_string())) {
                     Ok(()) => {},
                     Err(_err) => {
                         debug!("listener {:?} stopped accepting because of channel close", listener);
                         break
                     },
                 }
-                // We don't spin up a new thread here, because AddSocket does it for us.
+                thread::spawn(|| {
+                    check_stream(rx, stream);
+                });
             },
             Err(err) => panic!("{}", err),  // TODO: Better handle errors.
         }
     }
+}
+
+fn check_stream(_rx: Receiver<ConnectionMessage>, _stream: TcpStream) {
+    unimplemented!()
 }
 
 #[allow(unused)]    // TODO: Remove allow(unused).
