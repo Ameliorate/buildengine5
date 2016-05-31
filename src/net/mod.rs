@@ -7,6 +7,7 @@ use std::error::Error;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::io;
+use std::io::Read;
 use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::thread;
 use std::sync::{Arc, Mutex, RwLock};
@@ -238,17 +239,23 @@ fn check_stream_send(rx: Receiver<ConnectionMessage>, _stream: TcpStream) {
     }
 }
 
-fn check_stream_recv(_stream: TcpStream) {
-    unimplemented!()
+fn check_stream_recv(mut stream: TcpStream) {
+    loop {
+        let mut header: [u8; 6] = [0; 6];
+        (&mut stream).take(6).read_exact(&mut header).unwrap();
+        let len = get_packet_length(header).unwrap();
+        let mut bytes: Vec<u8> = Vec::new();
+        (&mut stream).take(len as u64).read_to_end(&mut bytes).unwrap();    // I think I'm in love.
+        let message = deserialize_packet(&bytes).unwrap();
+        handle_message(message);
+    }
 }
 
-#[allow(unused)]    // TODO: Remove allow(unused).
 fn deserialize_packet(to_de: &[u8]) -> Result<NetworkPacket, DeserializeError> {
     deserialize(to_de)
 }
 
 /// Returns the length of a given packet, or a None if the first four bytes do not match NET_MAGIC_NUMBER.
-#[allow(unused)]
 fn get_packet_length(to_ln: [u8; 6]) -> Option<u16> {
     let (first_four, next_two) = to_ln.split_at(4);
     let should_be_magic_num = LittleEndian::read_u32(&first_four);
@@ -257,6 +264,10 @@ fn get_packet_length(to_ln: [u8; 6]) -> Option<u16> {
     }
     let length = LittleEndian::read_u16(&next_two);
     Some(length)
+}
+
+fn handle_message(_message: NetworkPacket) {
+    unimplemented!()
 }
 
 #[allow(unused)]
