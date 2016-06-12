@@ -224,7 +224,7 @@ fn check_listener(listener: TcpListener, channel_: Sender<ControllerMessage>) {
                 }
                 let stream_clone = stream.try_clone().unwrap();
                 thread::spawn(|| check_stream_send(rx, stream));
-                thread::spawn(|| check_stream_recv(stream_clone));
+                thread::spawn(move || check_stream_recv(stream_clone, addr));
             }
             Err(err) => panic!("{}", err),  // TODO: Better handle errors.
         }
@@ -239,13 +239,49 @@ fn check_stream_send(rx: Receiver<ConnectionMessage>, _stream: TcpStream) {
     }
 }
 
-fn check_stream_recv(mut stream: TcpStream) {
-    loop {
+fn check_stream_recv(mut stream: TcpStream, addr: SocketAddr) {
+    'thread: loop {
         let mut header: [u8; 6] = [0; 6];
-        (&mut stream).take(6).read_exact(&mut header).unwrap();
+        'read_header: loop {
+            let maybe_err = (&mut stream).take(6).read_exact(&mut header);
+            if let Err(err) = maybe_err {
+                match err.kind() {
+                    io::ErrorKind::ConnectionReset | io::ErrorKind::ConnectionAborted => {
+                        info!("Connection with ip {} reset or aborted.", addr);
+                        break 'thread;
+                    }
+                    io::ErrorKind::Interrupted => continue 'read_header,
+                    _ => {
+                        panic!("error not accounted for occoured on socket with address {}. \
+                                display: {}",
+                               addr,
+                               err)
+                    }
+                }
+            }
+            break;
+        }
         let len = get_packet_length(header).unwrap();
         let mut bytes: Vec<u8> = Vec::new();
-        (&mut stream).take(len as u64).read_to_end(&mut bytes).unwrap();    // I think I'm in love.
+        'read_data: loop {
+            let maybe_error = (&mut stream).take(len as u64).read_to_end(&mut bytes);
+            if let Err(err) = maybe_error {
+                match err.kind() {
+                    io::ErrorKind::ConnectionReset | io::ErrorKind::ConnectionAborted => {
+                        info!("Connection with ip {} reset or aborted.", addr);
+                        break 'thread;
+                    }
+                    io::ErrorKind::Interrupted => continue 'read_data,
+                    _ => {
+                        panic!("error not accounted for occoured on socket with address {}. \
+                                display: {}",
+                               addr,
+                               err)
+                    }
+                }
+            }
+            break;
+        }
         let message = deserialize_packet(&bytes).unwrap();
         handle_message(message);
     }
