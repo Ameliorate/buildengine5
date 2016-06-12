@@ -7,8 +7,8 @@ use std::error::Error;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::io;
-use std::io::Read;
-use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
+use std::io::{Read, Write};
+use std::net::{SocketAddr, TcpListener, ToSocketAddrs};
 use std::thread;
 use std::sync::{Arc, Mutex, RwLock};
 use std::sync::mpsc::{Receiver, Sender, channel};
@@ -231,7 +231,7 @@ fn check_listener(listener: TcpListener, channel_: Sender<ControllerMessage>) {
     }
 }
 
-fn check_stream_send(rx: Receiver<ConnectionMessage>, _stream: TcpStream) {
+fn check_stream_send<T: Write>(rx: Receiver<ConnectionMessage>, _stream: T) {
     loop {
         match rx.recv().unwrap() {
             ConnectionMessage::DoNothing => {}
@@ -239,7 +239,7 @@ fn check_stream_send(rx: Receiver<ConnectionMessage>, _stream: TcpStream) {
     }
 }
 
-fn check_stream_recv(mut stream: TcpStream, addr: SocketAddr) {
+fn check_stream_recv<T: Read>(mut stream: T, addr: SocketAddr) {
     'thread: loop {
         let mut header: [u8; 6] = [0; 6];
         'read_header: loop {
