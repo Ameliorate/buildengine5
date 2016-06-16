@@ -25,6 +25,7 @@ fn check_controller_channel_runs() {
 
 #[test]
 fn ip_correct() {
+    start_log_once();
     let ip = super::ip("8.8.8.8:80");
     let correct = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(8, 8, 8, 8), 80));
     assert_eq!(ip, correct);
@@ -34,5 +35,6 @@ fn ip_correct() {
 #[should_panic(expected = "because localhost can resolve to both 127.0.0.1, and the various IPV6 versions \
         of 127.0.0.1, it may not be used. please instead use 127.0.0.1")]
 fn ip_localhost() {
+    start_log_once();
     super::ip("localhost:80");
 }
