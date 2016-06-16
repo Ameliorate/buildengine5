@@ -219,12 +219,12 @@ fn check_controller_channel(rx: Receiver<ControllerMessage>, controller: Arc<Con
     }
 }
 
-fn check_listener(listener: TcpListener, channel_: Sender<ControllerMessage>) {
+fn check_listener(listener: TcpListener, controller_tx: Sender<ControllerMessage>) {
     loop {
         match listener.accept() {
             Ok((stream, addr)) => {
                 let (tx, rx) = channel();
-                match channel_.send(ControllerMessage::AddSocket(tx, addr.to_string())) {
+                match controller_tx.send(ControllerMessage::AddSocket(tx, addr.to_string())) {
                     Ok(()) => {}
                     Err(_err) => {
                         debug!("listener {:?} stopped accepting because of channel close",
