@@ -10,7 +10,7 @@ use std::io;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, ToSocketAddrs};
 use std::thread;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, RwLock, Weak};
 use std::sync::mpsc::{Receiver, Sender, channel};
 
 use bincode::serde::{DeserializeError, deserialize, serialize};
@@ -48,7 +48,7 @@ impl Controller {
             connections: RwLock::new(Vec::new()),
             tx: Mutex::new(tx),
         });
-        let self_raw_clone = self_raw.clone();
+        let self_raw_clone = Arc::downgrade(&self_raw);
         thread::spawn(move || {
             check_controller_channel(rx, self_raw_clone);
         });
@@ -193,23 +193,27 @@ pub fn ip(ip_addr: &str) -> SocketAddr {
     ip
 }
 
-fn check_controller_channel(rx: Receiver<ControllerMessage>, controller: Arc<ControllerRaw>) {
+fn check_controller_channel(rx: Receiver<ControllerMessage>, controller: Weak<ControllerRaw>) {
     loop {
         match rx.recv() {
-            Ok(msg) => {
-                match msg {
-                    ControllerMessage::AddSocket(tx_connection, _addr) => {
-                        // TODO: Add a hook allowing intersepting the addr and denying the connection.
-                        controller.connections
-                                  .write()
-                                  .unwrap()
-                                  .push(Connection { channel: Mutex::new(tx_connection) });
+            Ok(ControllerMessage::AddSocket(tx_connection, _addr)) => {
+                // TODO: Add a hook allowing intersepting the addr and denying the connection.
+                let controller_arc = match controller.upgrade() {
+                    Some(val) => val,
+                    None => {
+                        debug!("All Arc pointers to Controller dropped, shutting down \
+                                net::check_controller_channel.");
+                        break;
                     }
-                    #[cfg(test)]
-                    ControllerMessage::Test(tattle) => {
-                        tattle.call();
-                    }
-                }
+                };
+                controller_arc.connections
+                              .write()
+                              .unwrap()
+                              .push(Connection { channel: Mutex::new(tx_connection) });
+            }
+            #[cfg(test)]
+            Ok(ControllerMessage::Test(tattle)) => {
+                tattle.call();
             }
             Err(_err) => {
                 debug!("Channel connected to controller disconnected");

@@ -14,7 +14,7 @@ fn check_controller_channel_runs() {
         connections: RwLock::new(Vec::new()),
         tx: Mutex::new(tx),
     });
-    let controller_raw_clone = controller_raw.clone();
+    let controller_raw_clone = Arc::downgrade(&controller_raw);
     thread::spawn(move || super::check_controller_channel(rx, controller_raw_clone));
     let tattle = Tattle::new();
     tattle.assert_changed(|| {
@@ -25,6 +25,27 @@ fn check_controller_channel_runs() {
                       .unwrap();
         thread::sleep(Duration::from_millis(TEST_SLEEP_TIME_MILLIS));
     });
+}
+
+#[test]
+fn check_controller_channel_exits() {
+    start_log_once();
+    let (tx_controller, rx_controller): (Sender<super::ControllerMessage>, _) = channel();
+    let controller_raw = Arc::new(super::ControllerRaw {
+        connections: RwLock::new(Vec::new()),
+        tx: Mutex::new(tx_controller),
+    });
+    let (tx_thread, rx_thread) = channel::<()>();
+    let controller_raw_clone = Arc::downgrade(&controller_raw);
+    thread::spawn(move || {
+        super::check_controller_channel(rx_controller, controller_raw_clone);
+        tx_thread.send(()).unwrap();
+    });
+    drop(controller_raw);
+    thread::sleep(Duration::from_millis(TEST_SLEEP_TIME_MILLIS));
+    rx_thread.try_recv()
+             .expect("the function net::check_controller_channel did not return after all \
+                      Arcpointers to the ControllerRaw were dropped.");
 }
 
 #[test]
