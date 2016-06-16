@@ -1,10 +1,10 @@
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::{Arc, Mutex, RwLock};
-use std::sync::mpsc::{channel, Sender};
+use std::sync::mpsc::{Sender, channel};
 use std::time::Duration;
 use std::thread;
 
-use ::test_util::{TEST_SLEEP_TIME_MILLIS, start_log_once, Tattle};
+use test_util::{TEST_SLEEP_TIME_MILLIS, Tattle, start_log_once};
 
 #[test]
 fn check_controller_channel_runs() {
@@ -18,7 +18,11 @@ fn check_controller_channel_runs() {
     thread::spawn(move || super::check_controller_channel(rx, controller_raw_clone));
     let tattle = Tattle::new();
     tattle.assert_changed(|| {
-        controller_raw.tx.lock().unwrap().send(super::ControllerMessage::Test(tattle.clone())).unwrap();
+        controller_raw.tx
+                      .lock()
+                      .unwrap()
+                      .send(super::ControllerMessage::Test(tattle.clone()))
+                      .unwrap();
         thread::sleep(Duration::from_millis(TEST_SLEEP_TIME_MILLIS));
     });
 }

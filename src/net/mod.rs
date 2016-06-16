@@ -18,7 +18,7 @@ use bincode::SizeLimit;
 use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
 
 #[cfg(test)]
-use ::test_util::Tattle;
+use test_util::Tattle;
 
 /// Standard number to ensure network connections are syncronized and the same protocol is being used.
 ///
