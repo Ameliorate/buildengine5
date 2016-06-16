@@ -8,6 +8,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use env_logger;
 
+/// Ammount of time to sleep when syncronizing threading.
+///
+/// Increase if tests fail when the should succeed too much.
+pub const TEST_SLEEP_TIME_MILLIS: u64 = 500;
+
 /// Provides an abstraction for testing weather or not a code path was taken, and how many times.
 ///
 /// All state for the Tattle is done using atomics, so locks are not needed for thread-safety.
@@ -43,7 +48,19 @@ impl Tattle {
         let old = self.get();
         closure();
         let new = self.get();
-        old == new
+        old != new
+    }
+
+    /// Compares the value of the Tattle before and after running the given closure.
+    ///
+    /// If the value changed, the a panic is raised. The function returns otherwise.
+    pub fn assert_changed<F>(&self, closure: F)
+        where F: FnOnce()
+    {
+        let old = self.get();
+        closure();
+        let new = self.get();
+        assert!(new != old);
     }
 }
 

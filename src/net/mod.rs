@@ -17,6 +17,9 @@ use bincode::serde::{DeserializeError, deserialize, serialize};
 use bincode::SizeLimit;
 use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
 
+#[cfg(test)]
+use ::test_util::Tattle;
+
 /// Standard number to ensure network connections are syncronized and the same protocol is being used.
 ///
 /// Reexported incase it is of use for something not-networking.
@@ -165,6 +168,9 @@ pub enum ConnectionMessage {
 pub enum ControllerMessage {
     /// Add a socket, spinning up a new thread in the process.
     AddSocket(Sender<ConnectionMessage>, String),
+    /// Used for unit testing.
+    #[cfg(test)]
+    Test(Tattle),
 }
 
 /// Parses a str to a SocketAddr.
@@ -198,6 +204,10 @@ fn check_controller_channel(rx: Receiver<ControllerMessage>, controller: Arc<Con
                                   .write()
                                   .unwrap()
                                   .push(Connection { channel: Mutex::new(tx_connection) });
+                    }
+                    #[cfg(test)]
+                    ControllerMessage::Test(tattle) => {
+                        tattle.call();
                     }
                 }
             }
